@@ -1,14 +1,14 @@
-# NeoTube — Development Guide
+# X-Stream — Development Guide
 
 ## Overview
 
-NeoTube is a free, open source, privacy-respecting YouTube client. It allows users to browse and watch YouTube content without being tracked by Google.
+X-Stream is a free, open source, privacy-respecting YouTube client. It allows users to browse and watch YouTube content without being tracked by Google.
 
 ---
 
 ## Architecture
 
-NeoTube ships as a **self-contained Tauri desktop app**. The React/Vite UI (`src/`) runs in the platform webview, talks to YouTube directly through youtubei.js, and stores its data in PouchDB. A Rust shell (`src-tauri/`) provides the window, the HTTP stack, and the handful of native capabilities the webview lacks.
+X-Stream ships as a **self-contained Tauri desktop app**. The React/Vite UI (`src/`) runs in the platform webview, talks to YouTube directly through youtubei.js, and stores its data in PouchDB. A Rust shell (`src-tauri/`) provides the window, the HTTP stack, and the handful of native capabilities the webview lacks.
 
 A standalone Node.js server (`server/`) also exists and exposes the same capabilities over REST. It is **optional** — used by the browser build and for LAN/self-hosted setups. The desktop app does not require it.
 
@@ -36,7 +36,7 @@ graph TB
     subgraph SRV["Server — optional (server/) · port 7700"]
         direction TB
         FW[Fastify HTTP server]
-        SDB[(PouchDB / LevelDB\n~/.neotube/db)]
+        SDB[(PouchDB / LevelDB\n~/.x-stream/db)]
         SIT["Innertube\n(youtubei.js)"]
         YD[yt-dlp binary]
         FW --> SDB & SIT & YD
@@ -128,7 +128,7 @@ GET    /api/health                          → { ok: true, version }
 ## Directory Structure
 
 ```
-NeoTube/
+X-Stream/
 ├── server/                    # Standalone Node.js REST API server
 │   └── src/
 │       ├── index.ts           # Fastify instance, CORS, optional API key, startup

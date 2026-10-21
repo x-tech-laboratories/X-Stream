@@ -1,7 +1,7 @@
 { lib, buildNpmPackage, nodejs_22 }:
 
 buildNpmPackage rec {
-  pname = "neotube";
+  pname = "x-stream";
   version = "0.1.0";
 
   src = ./.;
@@ -21,6 +21,6 @@ buildNpmPackage rec {
     description = "A free, open source, privacy-respecting YouTube client";
     license = licenses.gpl3Only;
     platforms = platforms.all;
-    mainProgram = "neotube";
+    mainProgram = "x-stream";
   };
 }

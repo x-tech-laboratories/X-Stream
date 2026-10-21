@@ -42,7 +42,7 @@ pkgs.mkShell {
   ];
 
   shellHook = ''
-    echo "NeoTube dev environment"
+    echo "X-Stream dev environment"
     echo "  node    $(node --version)"
     echo "  npm     $(npm --version)"
     echo "  cargo   $(cargo --version 2>/dev/null || echo 'not found')"
@@ -51,7 +51,7 @@ pkgs.mkShell {
     echo "  Desktop:  npm run tauri:dev"
 
     # Tell the app where to find the server directory.
-    export NEOTUBE_SERVER_PATH="$(pwd)/server"
+    export XSTREAM_SERVER_PATH="$(pwd)/server"
 
     # glib-networking ships its TLS module outside the webkit closure; without
     # this WebKitGTK cannot negotiate HTTPS and every YouTube request fails.

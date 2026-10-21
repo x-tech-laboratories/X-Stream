@@ -10,9 +10,9 @@ import settingsRoutes from './routes/settings.js'
 import proxyRoutes from './routes/proxy.js'
 import syncRoutes from './routes/sync.js'
 
-const PORT = parseInt(process.env.NEOTUBE_PORT ?? '7700', 10)
-const HOST = process.env.NEOTUBE_HOST ?? '0.0.0.0'
-const API_KEY = process.env.NEOTUBE_API_KEY ?? ''
+const PORT = parseInt(process.env.XSTREAM_PORT ?? '7700', 10)
+const HOST = process.env.XSTREAM_HOST ?? '0.0.0.0'
+const API_KEY = process.env.XSTREAM_API_KEY ?? ''
 
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' } })
 
@@ -48,4 +48,4 @@ const settings = await getSettings().catch(() => null)
 if (settings?.ytCookie) await setCookie(settings.ytCookie)
 
 await app.listen({ port: PORT, host: HOST })
-console.log(`NeoTube server running on http://localhost:${PORT}`)
+console.log(`X-Stream server running on http://localhost:${PORT}`)

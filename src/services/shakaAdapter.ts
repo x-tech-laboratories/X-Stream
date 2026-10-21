@@ -6,7 +6,7 @@
 //  - The reference proxies requests through the `ytc-bridge` browser extension
 //    to escape CORS. We use `tauriFetch`, which goes through Rust and has no
 //    such restriction, so the extension check is dropped entirely.
-//  - Only the pieces NeoTube needs are kept; DRM handling is omitted since we
+//  - Only the pieces X-Stream needs are kept; DRM handling is omitted since we
 //    never play protected content.
 
 import shaka from 'shaka-player/dist/shaka-player.ui'
