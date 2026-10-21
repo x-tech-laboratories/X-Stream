@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "NeoTube",
+  "productName": "X-Stream",
   "version": "0.1.0",
-  "identifier": "app.neotube",
+  "identifier": "io.github.x-tech-laboratories.x-stream",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5173",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "NeoTube",
+        "title": "X-Stream",
         "width": 1280,
         "height": 800
       }

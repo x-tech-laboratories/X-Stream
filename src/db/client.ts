@@ -7,6 +7,6 @@ import PouchDB from 'pouchdb-browser'
 let _db: PouchDB.Database | null = null
 
 export function db(): PouchDB.Database {
-  if (!_db) _db = new PouchDB('neotube')
+  if (!_db) _db = new PouchDB('x-stream')
   return _db
 }

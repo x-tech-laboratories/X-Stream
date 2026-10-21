@@ -44,7 +44,7 @@ describe('ThemeContext / useTheme', () => {
   })
 
   it('restores stored theme from localStorage', () => {
-    localStorage.setItem('neotube-theme', 'dark')
+    localStorage.setItem('x-stream-theme', 'dark')
     const { result } = renderHook(() => useTheme(), { wrapper })
     expect(result.current.theme).toBe('dark')
   })
@@ -72,7 +72,7 @@ describe('ThemeContext / useTheme', () => {
   it('persists to localStorage on change', () => {
     const { result } = renderHook(() => useTheme(), { wrapper })
     act(() => result.current.toggle())
-    expect(localStorage.getItem('neotube-theme')).toBe('dark')
+    expect(localStorage.getItem('x-stream-theme')).toBe('dark')
   })
 
   it('sets data-theme attribute on documentElement', () => {

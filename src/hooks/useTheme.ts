@@ -3,7 +3,7 @@ import { getSettings, saveSettings } from '../db/index'
 
 type Theme = 'light' | 'dark'
 
-const STORAGE_KEY = 'neotube-theme'
+const STORAGE_KEY = 'x-stream-theme'
 
 function getInitialTheme(): Theme {
   const stored = localStorage.getItem(STORAGE_KEY)

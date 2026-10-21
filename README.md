@@ -1,8 +1,10 @@
-# NeoTube
+# X-Stream
+
+[![AI readiness](https://img.shields.io/endpoint?url=https://x-tech-laboratories.github.io/badges/x-tech-laboratories/X-Stream.json)](https://x-tech-laboratories.github.io/guidelines/readiness/)
 
 A free, open source, privacy-respecting YouTube client.
 
-NeoTube lets you browse and watch YouTube content without being tracked by Google. It is fully peer-to-peer — your data lives on your device and syncs directly with your other devices, with no central server involved.
+X-Stream lets you browse and watch YouTube content without being tracked by Google. It is fully peer-to-peer — your data lives on your device and syncs directly with your other devices, with no central server involved.
 
 ## Platforms
 
@@ -14,7 +16,7 @@ NeoTube lets you browse and watch YouTube content without being tracked by Googl
 
 ## Development
 
-NeoTube uses a [Nix](https://nixos.org/) dev environment for reproducible builds.
+X-Stream uses a [Nix](https://nixos.org/) dev environment for reproducible builds.
 
 ### Enter the dev shell
 

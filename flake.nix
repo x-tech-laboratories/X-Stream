@@ -1,5 +1,5 @@
 {
-  description = "NeoTube — a free, open source, privacy-respecting YouTube client";
+  description = "X-Stream — a free, open source, privacy-respecting YouTube client";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

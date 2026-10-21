@@ -34,8 +34,8 @@ Thumbs.db
 *.swo
 
 # PouchDB local databases (created at runtime in Node/Electron)
-neotube/
-neotube-test*/
+x-stream/
+x-stream-test*/
 _pouch_*/
 
 # Nix

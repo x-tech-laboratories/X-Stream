@@ -6,7 +6,7 @@ import type { UserSettings, Subscription, WatchHistoryEntry, CachedVideo, Channe
 
 // ─── Database singleton ───────────────────────────────────────────────────────
 
-const dbPath = process.env.NEOTUBE_DB_PATH ?? join(homedir(), '.neotube', 'db')
+const dbPath = process.env.XSTREAM_DB_PATH ?? join(homedir(), '.x-stream', 'db')
 
 // LevelDB requires the directory to exist before opening.
 mkdirSync(dbPath, { recursive: true })
