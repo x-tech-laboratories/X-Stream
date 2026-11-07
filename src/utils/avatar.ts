@@ -1,18 +1,10 @@
-import { isTauri, tauriFetch } from './tauri'
+import { is_desktop, desktop_fetch } from './desktop'
 
-/**
- * Fetches an image and returns it as a base64 data URI suitable for direct
- * storage in PouchDB.
- *
- * Under Tauri the request goes through Rust's HTTP stack, which is not subject
- * to the webview's CORS rules. In a plain browser there is no way around those
- * rules for YouTube's image hosts, so this returns null and callers fall back
- * to the original URL.
- */
+// Fetches an image as a base64 data URI for PouchDB, or null outside the desktop app where YouTube's image hosts are cross-origin.
 export async function downloadAvatar(url: string): Promise<string | null> {
-  if (!url || !isTauri()) return null
+  if (!url || !is_desktop()) return null
   try {
-    const response = await tauriFetch(url)
+    const response = await desktop_fetch(url)
     if (!response.ok) return null
     const buffer = await response.arrayBuffer()
     const contentType = response.headers.get('content-type') ?? 'image/jpeg'

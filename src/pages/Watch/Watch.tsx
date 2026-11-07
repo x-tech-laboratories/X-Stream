@@ -9,7 +9,7 @@ import Comments from '../../components/Comments'
 import PlaylistPicker from '../../components/PlaylistPicker'
 import { formatViews } from '../../utils/format'
 import VideoMenu from '../../components/VideoMenu'
-import { openInBrowser } from '../../utils/tauri'
+import { openInBrowser } from '../../utils/desktop'
 import Button from '../../components/Button'
 import './Watch.css'
 

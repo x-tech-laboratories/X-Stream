@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { isTauri, tauriFetch } from '../../utils/tauri'
+import { is_desktop, desktop_fetch } from '../../utils/desktop'
 
 // ─── Innertube singleton ──────────────────────────────────────────────────────
 
@@ -9,11 +9,9 @@ let _cookie = ''
 async function buildClient(): Promise<any> {
   const { Innertube } = await import('youtubei.js')
   const opts: Record<string, any> = _cookie ? { cookie: _cookie } : {}
-  // Under Tauri the webview enforces CORS, which YouTube's API does not satisfy.
-  // Routing Innertube's requests through Rust's HTTP stack sidesteps it entirely.
-  // The same shim serves desktop and mobile.
-  if (isTauri()) {
-    opts.fetch = tauriFetch
+  // The page's cross-origin rules block YouTube's API, so the desktop app sends Innertube's requests from its main process.
+  if (is_desktop()) {
+    opts.fetch = desktop_fetch
   }
   return Innertube.create(opts)
 }

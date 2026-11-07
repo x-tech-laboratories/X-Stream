@@ -1,25 +1,28 @@
-{ lib, buildNpmPackage, nodejs_22 }:
+{ lib, buildNpmPackage, nodejs_24 }:
 
 buildNpmPackage rec {
   pname = "x-stream";
   version = "0.1.0";
 
   src = ./.;
-  nodejs = nodejs_22;
+  nodejs = nodejs_24;
+
+  # The build never starts Electron, so its binary is not downloaded.
+  env.ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
 
   # Run `nix build` once and replace with the hash printed in the error.
   npmDepsHash = lib.fakeHash;
 
-  # Vite outputs to dist/
+  # electron-vite writes the main process, preload and page into out/
   installPhase = ''
     runHook preInstall
-    cp -r dist $out
+    cp -r out $out
     runHook postInstall
   '';
 
   meta = with lib; {
     description = "A free, open source, privacy-respecting YouTube client";
-    license = licenses.gpl3Only;
+    license = licenses.gpl3Plus;
     platforms = platforms.all;
     mainProgram = "x-stream";
   };

@@ -4,8 +4,8 @@
 // Ported from googlevideo's sabr-shaka-example. Two deliberate differences:
 //
 //  - The reference proxies requests through the `ytc-bridge` browser extension
-//    to escape CORS. We use `tauriFetch`, which goes through Rust and has no
-//    such restriction, so the extension check is dropped entirely.
+//    to escape CORS. We use `desktop_fetch`, sent from the main process, so the
+//    extension check is dropped entirely.
 //  - Only the pieces X-Stream needs are kept; DRM handling is omitted since we
 //    never play protected content.
 
@@ -21,7 +21,7 @@ import {
   type SabrRequestMetadata,
   type UmpProcessingResult,
 } from 'googlevideo/sabr-streaming-adapter'
-import { tauriFetch } from '../utils/tauri'
+import { desktop_fetch } from '../utils/desktop'
 
 function headersToObject(headers: Headers): Record<string, string> {
   const result: Record<string, string> = {}
@@ -290,8 +290,8 @@ export class ShakaPlayerAdapter implements SabrPlayerAdapter {
         if (cached) return cached
       }
 
-      // Everything goes through Rust; the webview's CORS rules never apply.
-      const response = await tauriFetch(uri, init)
+      // Everything goes through the main process, where the page's CORS rules never apply.
+      const response = await desktop_fetch(uri, init)
       headersReceived(headersToObject(response.headers))
 
       const isUmp = response.headers.get('content-type') === 'application/vnd.yt-ump'
