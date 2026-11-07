@@ -1,9 +1,6 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 
-vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
-
-const { repairYouTubePayload } = await import('../src/utils/tauri')
+import { repairYouTubePayload } from '../src/utils/desktop'
 
 /**
  * These guard two live YouTube schema changes that crash youtubei.js 17.2.0.

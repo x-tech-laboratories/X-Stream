@@ -1,26 +1,25 @@
 name: CI
 
 on:
-  pull_request:
   push:
     branches: [main]
-
-permissions:
-  contents: read
+  pull_request:
+    branches: [main]
 
 jobs:
+  # The job keeps the name "test", the status check the main branch's ruleset requires.
   test:
     runs-on: ubuntu-latest
+    env:
+      # The build and tests never start Electron, so its binary is not downloaded.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
-      - run: npm ci --ignore-scripts
-      - name: Lint
-        run: npm run lint
-      - name: Typecheck
-        run: npx tsc -b --noEmit
-      - name: Run tests
-        run: npm run test:run
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npm run lint

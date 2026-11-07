@@ -4,13 +4,11 @@
 // running YouTube's own BotGuard interpreter — a script fetched at runtime and
 // evaluated in the page — then exchanging its snapshot for an integrity token.
 //
-// Ported from googlevideo's sabr-shaka-example. The reference implementation
-// routes these calls through a browser extension to dodge CORS; we use the
-// Tauri HTTP shim instead, which has no such restriction.
+// Ported from googlevideo's sabr-shaka-example; requests go through desktop_fetch instead of its browser extension.
 
 import { BG, buildURL, GOOG_API_KEY } from 'bgutils-js'
 import type { DescrambledChallenge, WebPoSignalOutput } from 'bgutils-js'
-import { tauriFetch } from '../utils/tauri'
+import { desktop_fetch } from '../utils/desktop'
 
 /** Identifies this client to the BotGuard service. From the reference impl. */
 const WAA_REQUEST_KEY = 'O43z0dpjhgX20SCx4KAo'
@@ -50,7 +48,7 @@ export class BotguardService {
   }
 
   private async setup(): Promise<BG.BotGuardClient | undefined> {
-    const response = await tauriFetch(buildURL('Create', true), {
+    const response = await desktop_fetch(buildURL('Create', true), {
       method: 'POST',
       headers: JSON_PROTOBUF_HEADERS,
       body: JSON.stringify([WAA_REQUEST_KEY]),
@@ -82,7 +80,7 @@ export class BotguardService {
     const webPoSignalOutput: WebPoSignalOutput = []
     const snapshot = await this.client.snapshot({ webPoSignalOutput })
 
-    const tokenResponse = await tauriFetch(buildURL('GenerateIT', true), {
+    const tokenResponse = await desktop_fetch(buildURL('GenerateIT', true), {
       method: 'POST',
       headers: JSON_PROTOBUF_HEADERS,
       body: JSON.stringify([WAA_REQUEST_KEY, snapshot]),

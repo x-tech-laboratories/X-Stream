@@ -1,0 +1,51 @@
+// The desktop app's main process: one window on the React page, and the calls the page cannot make itself.
+
+import { app, BrowserWindow, ipcMain, nativeTheme, screen, shell } from 'electron'
+import { join } from 'node:path'
+
+import { create_main_fetch } from '@x-tech-laboratories/x-libs/electron/fetch'
+import { create_window } from '@x-tech-laboratories/x-libs/electron/window'
+
+import { x_stream_bridge, YOUTUBE_HOSTS } from '../shared/bridge.ts'
+import { freetube_read_data, freetube_scan } from './freetube.ts'
+
+// ============================================================================
+// Window
+// ============================================================================
+
+function open_main_window(): void {
+  create_window(BrowserWindow, {
+    title: 'X-Stream',
+    file: join(import.meta.dirname, '../renderer/index.html'),
+    dev_url: process.env.ELECTRON_RENDERER_URL,
+    preload: join(import.meta.dirname, '../preload/index.cjs'),
+    sandbox: true,
+    default_size: { width: 1280, height: 800 },
+    min_size: { width: 640, height: 480 },
+    state_file: join(app.getPath('userData'), 'window.json'),
+    native_theme: nativeTheme,
+    shell,
+    screen,
+  })
+}
+
+// ============================================================================
+// Start
+// ============================================================================
+
+x_stream_bridge.handle(ipcMain, {
+  http_fetch: create_main_fetch({ hosts: YOUTUBE_HOSTS }),
+  freetube_scan: () => freetube_scan(),
+  freetube_read_data: (directory) => freetube_read_data(directory),
+})
+
+void app.whenReady().then(() => {
+  open_main_window()
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) open_main_window()
+  })
+})
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit()
+})

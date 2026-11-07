@@ -8,7 +8,7 @@ X-Stream is a free, open source, privacy-respecting YouTube client. It allows us
 
 ## Architecture
 
-X-Stream ships as a **self-contained Tauri desktop app**. The React/Vite UI (`src/`) runs in the platform webview, talks to YouTube directly through youtubei.js, and stores its data in PouchDB. A Rust shell (`src-tauri/`) provides the window, the HTTP stack, and the handful of native capabilities the webview lacks.
+X-Stream ships as a **self-contained Electron desktop app** built with electron-vite. The React UI (`src/`) runs as the page in the window, talks to YouTube through youtubei.js, and stores its data in PouchDB. The main process (`src/main/`) provides the window, the requests the page's cross-origin rules would block, and the FreeTube import, over a bridge from X-Libs (`src/shared/bridge.ts`).
 
 A standalone Node.js server (`server/`) also exists and exposes the same capabilities over REST. It is **optional** — used by the browser build and for LAN/self-hosted setups. The desktop app does not require it.
 
@@ -17,19 +17,19 @@ A standalone Node.js server (`server/`) also exists and exposes the same capabil
 ```mermaid
 graph TB
     %% ── Desktop app ────────────────────────────────────────────────────────
-    subgraph APP["Desktop app — Tauri"]
+    subgraph APP["Desktop app — Electron"]
         direction TB
-        subgraph WV["Webview — React / Vite (src/)"]
+        subgraph WV["Page — React / Vite (src/)"]
             UI[React UI]
             IT["Innertube\n(youtubei.js)"]
             PDB[(PouchDB\nIndexedDB)]
             UI --> IT & PDB
         end
-        subgraph RS["Rust shell (src-tauri/)"]
-            HTTP[tauri-plugin-http]
+        subgraph RS["Main process (src/main/)"]
+            HTTP["X-Libs electron/fetch"]
             FT[FreeTube import]
         end
-        IT -- "fetch shim" --> HTTP
+        IT -- "fetch shim over IPC" --> HTTP
     end
 
     %% ── Optional server ────────────────────────────────────────────────────
@@ -55,17 +55,17 @@ graph TB
 
 | Layer | What runs there |
 |-------|----------------|
-| **Webview** (`src/`) | React UI, youtubei.js, PouchDB — the whole app |
-| **Rust shell** (`src-tauri/`) | Window, HTTP stack (CORS bypass), FreeTube import |
+| **Page** (`src/`) | React UI, youtubei.js, PouchDB — the whole app |
+| **Main process** (`src/main/`, `src/preload/`) | Window, YouTube requests (CORS bypass), FreeTube import |
 | **Server** (`server/`) | Optional REST API for the browser build and self-hosting; Innertube + yt-dlp + LevelDB |
 
 ### Key design points
 
-- **youtube.js runs in the webview.** The desktop app has no server dependency for YouTube data.
-- **CORS is bypassed via Rust, not header rewriting.** `tauri-plugin-http` performs requests outside the webview, so its CORS rules never apply. The single seam is `Innertube.create({ fetch })` in `src/plugins/youtubejs/innertube.ts`.
-- **`Origin` must be pinned, not stripped.** InnerTube answers `403` to any cross-origin `Origin` value (an empty one included), so `src/utils/tauri.ts` sets `Origin`/`Referer` to `https://www.youtube.com`. Deleting them does not work: `@tauri-apps/plugin-http` builds its own `Request` internally and merges the webview's headers back in for any key the caller left unset. See `tests/tauriFetch.test.ts`.
+- **youtube.js runs in the page.** The desktop app has no server dependency for YouTube data.
+- **CORS is bypassed in the main process, not by header rewriting.** `desktop_fetch` (`src/utils/desktop.ts`) hands each request to the main process over the bridge, which sends it with Node's fetch to the hosts in `YOUTUBE_HOSTS` only. The single seam is `Innertube.create({ fetch })` in `src/plugins/youtubejs/innertube.ts`.
+- **`Origin` must be pinned, not stripped.** InnerTube answers `403` to any cross-origin `Origin` value (an empty one included), so `desktop_fetch` sets `Origin`/`Referer` to `https://www.youtube.com`. See `tests/desktop_fetch.test.ts`.
 - **yt-dlp is server-side only.** The desktop client uses youtubei.js exclusively; the binary is still spawned by the Fastify process for `/api/video/:id?backend=ytdlp`.
-- **Adaptive streams need a proxy.** `googlevideo.com` serves cross-origin segment requests but returns no `Access-Control-Allow-Origin`, so the webview blocks the response before dash.js can read it. `src-tauri/src/stream.rs` registers a `ytstream://` scheme that proxies segments and adds the missing header; `toDash({ url_transformer })` rewrites the manifest to use it.
+- **Adaptive streams go through the same fetch.** `googlevideo.com` returns no `Access-Control-Allow-Origin`, so the SABR adapter (`src/services/shakaAdapter.ts`) sends its segment requests through `desktop_fetch` too.
 - **The IOS Innertube client is used for playback.** It is the only one returning stream URLs that need no signature deciphering — WEB/ANDROID/TV all require running YouTube's player script in a JS evaluator we don't ship.
 - **Cached data is only refetched when stale.** Each channel cache carries a
   `fetchedAt`; `getStaleChannelIds()` filters to expired entries (30 min TTL) so
@@ -78,8 +78,8 @@ graph TB
 - **Channel uploads are paginated.** YouTube returns 30 videos per response;
   `getChannelVideos()` follows continuations (capped at 100 pages) and reports each
   page so the grid fills progressively.
-- **Native capabilities live in Rust.** The FreeTube importer needs filesystem access the webview lacks, so it is a `#[tauri::command]` in `src-tauri/src/freetube.rs`. Pages feature-detect via `isTauri()` and degrade gracefully in the browser.
-- **One fetch shim serves desktop and mobile.** Tauri v2 targets Android/iOS with the same Rust HTTP stack, so no per-platform branch is needed.
+- **Native capabilities live in the main process.** The FreeTube importer needs filesystem access the page lacks, so it is a bridge method in `src/main/freetube.ts`. Pages feature-detect via `is_desktop()` and degrade gracefully without it.
+- **The built page loads from a file**, so routing uses a hash router and the CSP sits in `index.html`.
 
 ### REST API contract
 
@@ -119,9 +119,9 @@ GET    /api/health                          → { ok: true, version }
 
 | Platform | Stack |
 |----------|-------|
-| Desktop | Tauri + React (`src/`) → Linux / macOS / Windows |
+| Desktop | Electron + React (`src/`) → Linux / macOS / Windows |
 | Web | React (`src/`) in the browser → any modern browser (requires the server) |
-| Mobile | Tauri v2 (Android / iOS) — scaffolding present, not yet initialised |
+| Mobile | React Native — planned |
 
 ---
 
@@ -145,27 +145,25 @@ X-Stream/
 │           ├── proxy.ts       # /api/proxy?url= — image proxy
 │           └── sync.ts        # /api/sync — PouchDB replication
 │
-├── src-tauri/                 # Tauri desktop shell (Rust)
-│   ├── src/
-│   │   ├── main.rs            # Binary entry point
-│   │   ├── lib.rs             # Builder — registers plugins and commands
-│   │   ├── freetube.rs        # FreeTube import (filesystem access)
-│   │   └── stream.rs          # ytstream:// media segment proxy (CORS)
-│   ├── capabilities/          # Permission scopes (allow-listed HTTP hosts)
-│   ├── tauri.conf.json        # Window, CSP, bundle config
-│   └── Cargo.toml
+├── src/main/                  # Electron main process
+│   ├── index.ts               # Window (X-Libs create_window) and bridge handlers
+│   └── freetube.ts            # FreeTube import (filesystem access)
+├── src/preload/index.ts       # Exposes the bridge as window.x_stream
+├── src/shared/bridge.ts       # Bridge method table and allowed YouTube hosts
+├── src-tauri/                 # Former Tauri shell, outside the build
 │
-├── src/                       # React UI — the app itself (webview + browser)
+├── src/                       # React UI — the app itself (the window's page)
 │   ├── App.tsx                # React Router routes + Layout shell
 │   ├── components/            # Shared UI (Button, VideoCard, PageLayout, …)
 │   ├── pages/                 # Search, Watch, Channel, Subscriptions, Channels, History, Settings
 │   ├── plugins/               # Plugin system (youtubejs)
 │   ├── db/                    # PouchDB access layer (browser)
-│   ├── utils/tauri.ts         # Tauri detection, fetch shim, native bridges
+│   ├── utils/desktop.ts       # Desktop detection, fetch shim, native calls
 │   ├── contexts/ hooks/ services/ types/
 │   └── …
 │
-├── shell.nix                  # Nix dev shell: nodejs_22, rust, tauri-cli, webkitgtk
+├── electron.vite.config.ts    # Main, preload and page builds
+├── shell.nix                  # Nix dev shell: Node 24, Electron
 ├── flake.nix                  # Nix flake
 └── package.nix                # Nix package definition
 ```
@@ -181,8 +179,9 @@ X-Stream/
 | YouTube data | youtubei.js 17 |
 | Video download | yt-dlp (server only) |
 | Client UI | React 19 |
-| Adaptive playback | dash.js 5 (MSE) |
-| Desktop shell | Tauri 2 (Rust + WebKitGTK / WKWebView / WebView2) |
+| Adaptive playback | shaka-player 4 + googlevideo SABR (MSE) |
+| Desktop shell | Electron, built with electron-vite |
+| Shared code | `@x-tech-laboratories/x-libs` (bridge, window, fetch) |
 | React bundler | Vite 8 |
 | React routing | React Router 7 |
 | React testing | Vitest + Testing Library |
@@ -194,29 +193,23 @@ X-Stream/
 ## Running Locally
 
 ```bash
-# Enter Nix dev shell (provides node, rust, tauri-cli, webkitgtk, yt-dlp)
+# Enter Nix dev shell (provides Node 24, Electron, yt-dlp)
 nix-shell
 
-# Run the Tauri desktop app — this is the whole app, no server needed
-npm install && npm run tauri:dev
+# Run the desktop app — this is the whole app, no server needed
+npm install && npm run dev
 
-# Optional: the REST API server (needed only for the browser build)
+# Optional: the REST API server
 cd server && npm install && npm run dev
 # → http://localhost:7700
-
-# Optional: the React UI in the browser (points at the server above)
-npm run dev
 ```
-
-> The dev server is pinned to port 5173 (`strictPort`) because `src-tauri/tauri.conf.json`
-> points at that exact URL. A clash fails loudly rather than leaving Tauri on a blank page.
 
 ---
 
 ## Features
 
 ### Playback
-- Adaptive DASH playback up to 2160p via dash.js — YouTube only muxes video+audio to 360p, so higher qualities arrive as separate streams
+- Adaptive playback up to 2160p over SABR with shaka-player — YouTube only muxes video+audio to 360p, so higher qualities arrive as separate streams
 - Quality dropdown overlaid on the player (Auto + every available resolution)
 - Fullscreen toggle (button or double-click)
 - Quality selection from available streams
@@ -278,7 +271,7 @@ _To be defined._
 - [x] Watch page wired to active plugin
 
 ### Phase 3 — youtube.js Plugin ✓
-- [x] youtube.js plugin — runs in the webview; CORS bypassed via Tauri's Rust HTTP stack
+- [x] youtube.js plugin — runs in the page; CORS bypassed by fetching from the desktop shell
 - [x] YouTube cookie auth for 720p+ adaptive streams
 - [x] Plugin selector in Settings page
 
@@ -328,11 +321,18 @@ _To be defined._
 - [x] Video card overflow menu: mark as watched, open in YouTube, copy link
 - [x] Channel about text always visible (no longer collapsed)
 - [x] Feed caching with a TTL; thumbnails stored as URLs (DB ~75 MB → <1 MB)
-- [x] `Origin`/`Referer` pinning so InnerTube stops answering 403 (`src/utils/tauri.ts`)
+- [x] `Origin`/`Referer` pinning so InnerTube stops answering 403
+
+### Phase 8.5 — Electron on the X-Tech standard (in progress)
+- [x] Electron via electron-vite, on X-Libs' bridge, window and fetch helpers
+- [x] FreeTube import in the main process (`src/main/freetube.ts`)
+- [x] Node 24, TypeScript 7, GPL-3.0-or-later, CI workflow
+- [ ] Pages on X-Libs' widgets and Halon
+- [ ] Delete `src-tauri/` once the Electron app has been used for a while
 
 ### Phase 9 — Production Hardening
-- [ ] Tauri: package installers (AppImage / deb / dmg / msi) via `npm run tauri:build`
-- [ ] Tauri mobile: `tauri android init` + Android SDK/NDK in `shell.nix`
+- [ ] Package installers (AppImage / deb / dmg / msi) for the Electron app
+- [ ] Mobile app in React Native
 - [ ] Verify 1080p+ playback end to end in the app window
 - [ ] Server: systemd service unit file
 - [ ] Privacy mode (no history stored)

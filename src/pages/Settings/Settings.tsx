@@ -5,7 +5,7 @@ import { saveSettings, getSettings, subscribe, recordWatch } from '../../db/inde
 import { STARTUP_PAGES, type StartupPage } from '../../types'
 import { setCookie as ytjsSetCookie } from '../../plugins/youtubejs/innertube'
 import { downloadAvatar } from '../../utils/avatar'
-import { isTauri, freetubeScan, freetubeReadData } from '../../utils/tauri'
+import { is_desktop, freetubeScan, freetubeReadData } from '../../utils/desktop'
 import PageLayout from '../../components/PageLayout'
 import MenuButton from '../../components/MenuButton'
 import Button from '../../components/Button'
@@ -77,7 +77,7 @@ export default function Settings() {
   }
 
   async function handleScan() {
-    if (!isTauri()) return
+    if (!is_desktop()) return
     setImportState({ status: 'scanning' })
     try {
       const dirs = await freetubeScan()
@@ -141,7 +141,7 @@ export default function Settings() {
     }
   }
 
-  const isDesktop = isTauri()
+  const isDesktop = is_desktop()
 
   return (
     <PageLayout title="Settings">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ThemeProvider } from './contexts/ThemeContext'
 import Layout from './components/Layout'
 import Watch from './pages/Watch'
@@ -29,7 +29,8 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <BrowserRouter>
+      {/* The built page loads from a file, so the route lives in the hash. */}
+      <HashRouter>
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route
@@ -54,7 +55,7 @@ export default function App() {
             <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
-      </BrowserRouter>
+      </HashRouter>
     </ThemeProvider>
   )
 }

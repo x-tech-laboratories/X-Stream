@@ -1,8 +1,8 @@
 import '@testing-library/jest-dom'
 import { vi } from 'vitest'
 
-// jsdom does not implement matchMedia — provide a default stub
-Object.defineProperty(window, 'matchMedia', {
+// jsdom does not implement matchMedia — provide a default stub; Node tests have no window.
+if (typeof window !== 'undefined') Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: vi.fn().mockImplementation((query: string) => ({
     matches: false,

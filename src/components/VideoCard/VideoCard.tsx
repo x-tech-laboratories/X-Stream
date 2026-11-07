@@ -5,7 +5,7 @@ import VideoMenu, { type VideoMenuAction } from '../VideoMenu'
 import PlaylistPicker from '../PlaylistPicker'
 import { recordWatch } from '../../db/index'
 import { formatViews, timeAgo } from '../../utils/format'
-import { openInBrowser } from '../../utils/tauri'
+import { openInBrowser } from '../../utils/desktop'
 import './VideoCard.css'
 
 interface VideoCardProps {

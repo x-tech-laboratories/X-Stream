@@ -27,7 +27,7 @@ function parseDuration(text?: string | null): number {
 export class YoutubeJsPlugin implements VideoPlugin {
   readonly id = 'youtubejs'
   readonly name = 'youtube.js (Local)'
-  readonly description = 'Reverse-engineered YouTube client. Runs in the webview — CORS bypassed via Tauri\'s native HTTP stack.'
+  readonly description = 'Reverse-engineered YouTube client. Runs in the page; the desktop app sends its requests from the main process.'
 
   async isAvailable(): Promise<boolean> {
     return true

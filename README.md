@@ -10,55 +10,21 @@ X-Stream lets you browse and watch YouTube content without being tracked by Goog
 
 | Platform | How |
 |----------|-----|
-| Desktop | Tauri (Linux / macOS / Windows) |
-| Web | Vite dev server / static build |
-| Mobile | Tauri v2 (Android / iOS) — planned |
+| Desktop | Electron (Linux / macOS / Windows) |
+| Mobile | React Native — planned |
 
 ## Development
 
 X-Stream uses a [Nix](https://nixos.org/) dev environment for reproducible builds.
 
-### Enter the dev shell
-
 ```bash
-nix develop        # flake-based (recommended)
-# or
-nix-shell          # legacy nix-shell
-```
-
-### Install dependencies
-
-```bash
+nix develop        # or nix-shell: Node 24 and Electron
 npm install
-```
-
-### Run the web app
-
-```bash
-npm run dev
-```
-
-### Run the desktop app (Tauri)
-
-```bash
-npm run tauri:dev
-```
-
-Requires the Nix dev shell, which provides the Rust toolchain, `tauri-cli`, and the
-WebKitGTK system libraries.
-
-### Run tests
-
-```bash
-npm test           # watch mode
-npm run test:run   # single pass
-```
-
-### Build
-
-```bash
-npm run build              # web (outputs to dist/)
-npm run tauri:build        # desktop installers (outputs to src-tauri/target/release/)
+npm run dev        # the desktop app, reloading as the code changes
+npm run build      # type-checks, then builds into out/
+npm start          # runs the built app
+npm test           # one pass of the tests
+npm run lint
 ```
 
 ## Project structure
@@ -67,4 +33,4 @@ See [DEVELOP.md](DEVELOP.md) for the full architecture, tech stack, and roadmap.
 
 ## License
 
-GPL-3.0-only — see [LICENSE](LICENSE).
+GPL-3.0-or-later — see [LICENSE](LICENSE).

@@ -4,10 +4,13 @@
 
 ```
 X-Stream/
-├── src/             React UI — the app itself (runs in the Tauri webview and the browser)
-├── src-tauri/       Tauri desktop shell (Rust): window, HTTP stack, native commands
+├── src/             React UI — the app itself (the page in the Electron window)
+├── src/main/        Electron main process: the window, YouTube requests, FreeTube import
+├── src/preload/     Puts the main process's methods on the page as window.x_stream
+├── src/shared/      The bridge's method table, shared by main, preload and page
+├── src-tauri/       The former Tauri shell, kept for reference only and outside the build
 ├── server/          Optional Node.js REST API (Fastify + PouchDB + youtubei.js + yt-dlp)
-└── shell.nix        Nix dev shell (nodejs_22, rust, tauri-cli, webkitgtk, yt-dlp, git)
+└── shell.nix        Nix dev shell (Node 24, Electron, yt-dlp, git)
 ```
 
 Full architecture and roadmap are in [DEVELOP.md](DEVELOP.md).
@@ -17,7 +20,7 @@ Full architecture and roadmap are in [DEVELOP.md](DEVELOP.md).
 All development happens inside the Nix shell. Enter it once at the start of a session:
 
 ```bash
-nix-shell   # provides node, npm, cargo/rustc, tauri-cli, webkitgtk, yt-dlp, git
+nix-shell   # provides Node 24, npm, Electron, yt-dlp, git
             # also sets XSTREAM_SERVER_PATH=$(pwd)/server
 ```
 
@@ -28,18 +31,12 @@ nix-shell   # provides node, npm, cargo/rustc, tauri-cli, webkitgtk, yt-dlp, git
 ## Running things
 
 ```bash
-# Tauri desktop app — this is the whole app; no server required
-npm run tauri:dev
-
-# Optional API server (port 7700) — only the browser build needs it
-cd server && npm run dev
-
-# React web UI in the browser (points at the API server above)
+# Desktop app — this is the whole app; no server required
 npm run dev
-```
 
-Vite is pinned to port 5173 (`strictPort`) because `src-tauri/tauri.conf.json` points at
-that URL. If it's taken, `tauri:dev` fails loudly instead of showing a blank window.
+# Optional API server (port 7700); the app does not use it
+cd server && npm run dev
+```
 
 ## Server (`server/`)
 
@@ -53,29 +50,29 @@ that URL. If it's taken, `tauri:dev` fails loudly instead of showing a blank win
 
 Adding a route: create `server/src/routes/<name>.ts` exporting a default Fastify plugin, then register it in `server/src/index.ts`.
 
-## React UI (`src/`) + Tauri (`src-tauri/`)
+## React UI (`src/`) + Electron (`src/main/`, `src/preload/`)
 
-- `src/` is the app; it runs in the Tauri webview and in a plain browser
-- **Routing**: React Router 7 — routes in `src/App.tsx`; `Layout` wraps the tab pages, `/watch/:videoId` and `/channel/:channelId` render inside it
+- `src/` is the app; it runs as the page in the Electron window, built by electron-vite (`electron.vite.config.ts`)
+- **Routing**: React Router 7 with a hash router, since the built page loads from a file — routes in `src/App.tsx`; `Layout` wraps the tab pages, `/watch/:videoId` and `/channel/:channelId` render inside it
 - **Pages**: `src/pages/<Name>/` (Search, Watch, Channel, Subscriptions, Channels, History, Settings). There is no Home page — `/` redirects to the user's configured startup page.
 - **Data layer**: PouchDB (browser) via `src/db/`; the plugin system (`src/plugins/`, youtubejs only) fetches YouTube data
-- **Desktop-only features** (e.g. FreeTube import) are Rust commands in `src-tauri/src/`, wrapped in `src/utils/tauri.ts` and guarded with `isTauri()` in the page
+- **Desktop-only features** (e.g. FreeTube import) run in the main process (`src/main/`), are listed in the bridge table in `src/shared/bridge.ts` (X-Libs `define_bridge`), wrapped in `src/utils/desktop.ts`, and guarded with `is_desktop()` in the page
+- The window comes from X-Libs `create_window`: links and other sites open in the browser, and its size and place are kept in `window.json` in the app's data folder
 
 ### The fetch shim — read before touching networking
 
-youtubei.js runs *in the webview*, so YouTube requests would normally hit CORS. They are
-routed through Rust's HTTP stack instead via `Innertube.create({ fetch })`. Two
-non-obvious rules, both enforced by `tests/tauriFetch.test.ts`:
+youtubei.js runs *in the page*, so YouTube requests would normally hit CORS. They are
+sent from the main process instead (X-Libs `electron/fetch`) via `Innertube.create({ fetch })`.
+Two non-obvious rules, both enforced by `tests/desktop_fetch.test.ts`:
 
 - **Pin `Origin`/`Referer` to `https://www.youtube.com`.** InnerTube returns `403` for any
   cross-origin value, including an empty one.
-- **Set them, never delete them.** `@tauri-apps/plugin-http` builds its own `Request` and
-  merges the webview's headers back in for any key the caller left unset, so a deleted
-  `Origin` silently reappears as `http://localhost:5173`.
+- **New outbound hosts** must be added to `YOUTUBE_HOSTS` in `src/shared/bridge.ts`; the
+  main process refuses everything else, since the page also runs YouTube's BotGuard script.
 
-Adding a native command: write it in `src-tauri/src/`, register it in the
-`invoke_handler!` list in `src-tauri/src/lib.rs`, then wrap it in `src/utils/tauri.ts`.
-New outbound hosts must be allow-listed in `src-tauri/capabilities/default.json`.
+Adding a native command: write it in `src/main/`, add it to `XStreamApi` and the method
+list in `src/shared/bridge.ts`, answer it in `src/main/index.ts`, then wrap it in
+`src/utils/desktop.ts`.
 
 ### Performance — the rules that keep pages fast
 
@@ -94,28 +91,20 @@ Three constraints, each of which was a real regression:
 ### Video playback — why it isn't just `<video src>`
 
 YouTube stops muxing video+audio at **360p**; every higher quality is an adaptive
-(video-only) stream that must be combined with a separate audio stream via MSE. So the
-player feeds a DASH manifest to dash.js rather than setting `src` directly:
+(video-only) stream that must be combined with a separate audio stream via MSE. The
+player (`src/components/SabrPlayer/`) streams over SABR with shaka-player and
+googlevideo's adapter:
 
-- `getDashManifest()` in `src/plugins/youtubejs/innertube.ts` calls `info.toDash()`.
 - **Use the `IOS` Innertube client.** It's the only one whose stream URLs need no
   signature deciphering; WEB/ANDROID/TV require a JS evaluator we don't ship.
-- Segments are proxied through `ytstream://` (`src-tauri/src/stream.rs`) because
-  `googlevideo.com` sends no `Access-Control-Allow-Origin`, so the webview would
-  otherwise discard the response. Note this is the *opposite* problem to the fetch
-  shim above — here the request succeeds and the *response* is blocked.
-- Each resolution is published in several codecs (vp9/av01/avc1), so the quality
-  list must be de-duplicated by height — see `toQualityOptions` and
-  `tests/videoPlayer.test.ts`.
-- The player uses **custom controls**, not `<video controls>`. Playback state is
-  mirrored from the element by `useVideoPlayback`, so external changes (dash.js,
-  media keys, autoplay policy) stay in sync; the element remains the source of
-  truth. The native bar was dropped because it renders in the browser's shadow
-  DOM and cannot host the quality or speed menus.
+- Segment requests go through `desktop_fetch` (`src/services/shakaAdapter.ts`), since
+  `googlevideo.com` sends no `Access-Control-Allow-Origin`.
+- BotGuard (`src/services/botguard.ts`) mints the proof-of-origin token by running
+  YouTube's script in the page, which is why the CSP in `index.html` allows `'unsafe-eval'`.
 
 ### youtubei.js payload repairs
 
-`repairYouTubePayload` in `src/utils/tauri.ts` patches responses in transit to
+`repairYouTubePayload` in `src/utils/desktop.ts` patches responses in transit to
 work around live schema changes that youtubei.js 17.2.0 cannot parse — currently
 a missing `commentEntityPayload.avatar` (which throws for the whole response) and
 comment replies moving to `subThreads`. Check whether upstream has caught up
@@ -127,13 +116,12 @@ Adding a page: create `src/pages/<Name>/<Name>.tsx` (+ `.css`, `index.ts`), then
 
 | Task | Command |
 |------|---------|
-| Lint (React) | `npm run lint` |
-| Tests (React) | `npm run test:run` |
+| Lint | `npm run lint` |
+| Tests | `npm test` |
+| Type-check | `npm run typecheck` |
+| Desktop dev | `npm run dev` |
+| Desktop build | `npm run build` (into `out/`), then `npm start` |
 | Server dev | `cd server && npm run dev` |
-| Web dev | `npm run dev` |
-| Desktop dev | `npm run tauri:dev` |
-| Desktop build | `npm run tauri:build` |
-| Rust tests | `cd src-tauri && cargo test` |
 
 ## Conventions
 
@@ -158,11 +146,8 @@ Do not create separate design or decision documents — use the conversation and
 Run the relevant suite before committing:
 
 ```bash
-# React (Vitest)
-npm run test:run
-
-# Rust (Tauri shell)
-cd src-tauri && cargo test
+# Vitest: the files covering what changed
+npx vitest run tests/<file>.test.ts
 
 # Server smoke test (no test suite yet)
 cd server && npm run dev &

@@ -2,22 +2,23 @@
   "name": "x-stream",
   "private": true,
   "version": "0.1.0",
+  "description": "A free, open source, privacy-respecting YouTube client",
+  "license": "GPL-3.0-or-later",
   "type": "module",
+  "main": "./out/main/index.js",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
-    "preview": "vite preview",
-    "test": "vitest",
-    "test:run": "vitest run",
+    "dev": "electron-vite dev",
+    "build": "tsc -b && electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc -b --noEmit",
+    "test": "vitest run",
     "lint": "oxlint"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.11.1",
-    "@tauri-apps/plugin-http": "^2.5.9",
-    "@tauri-apps/plugin-opener": "^2.5.4",
+    "@x-tech-laboratories/x-libs": "^0.7.0",
     "bgutils-js": "^3.2.0",
     "events": "^3.3.0",
     "googlevideo": "^4.1.1",
@@ -30,7 +31,6 @@
     "youtubei.js": "^17.2.0"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.11.4",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -40,11 +40,13 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
+    "electron": "^45.2.3",
+    "electron-vite": "^6.0.0",
     "esbuild": "^0.28.1",
     "jsdom": "^29.1.1",
     "oxlint": "^1.71.0",
     "pouchdb-adapter-memory": "^9.0.0",
-    "typescript": "~6.0.2",
+    "typescript": "^7.0.2",
     "vite": "^8.1.1",
     "vitest": "^4.1.9"
   }
