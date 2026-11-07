@@ -10,8 +10,8 @@ buildNpmPackage rec {
   # The build never starts Electron, so its binary is not downloaded.
   env.ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
 
-  # Run `nix build` once and replace with the hash printed in the error.
-  npmDepsHash = lib.fakeHash;
+  # After a lock file change, refresh with `nix run nixpkgs#prefetch-npm-deps -- package-lock.json`.
+  npmDepsHash = "sha256-hhyEiDRsSBEPBCDhBzp7C+n7k5u1y1o0pIbmqPsT9Jo=";
 
   # electron-vite writes the main process, preload and page into out/
   installPhase = ''
