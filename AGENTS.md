@@ -8,7 +8,7 @@ X-Stream/
 ├── src/main/        Electron main process: the window, YouTube requests, FreeTube import
 ├── src/preload/     Puts the main process's methods on the page as window.x_stream
 ├── src/shared/      The bridge's method table, shared by main, preload and page
-├── src-tauri/       The former Tauri shell, kept for reference only and outside the build
+├── resources/       The app's icons
 ├── server/          Optional Node.js REST API (Fastify + PouchDB + youtubei.js + yt-dlp)
 └── shell.nix        Nix dev shell (Node 24, Electron, yt-dlp, git)
 ```

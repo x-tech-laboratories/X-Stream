@@ -150,7 +150,7 @@ X-Stream/
 │   └── freetube.ts            # FreeTube import (filesystem access)
 ├── src/preload/index.ts       # Exposes the bridge as window.x_stream
 ├── src/shared/bridge.ts       # Bridge method table and allowed YouTube hosts
-├── src-tauri/                 # Former Tauri shell, outside the build
+├── resources/icons/           # The app's icons
 │
 ├── src/                       # React UI — the app itself (the window's page)
 │   ├── App.tsx                # React Router routes + Layout shell
@@ -330,7 +330,7 @@ _To be defined._
 - [x] FreeTube import in the main process (`src/main/freetube.ts`)
 - [x] Node 24, TypeScript 7, GPL-3.0-or-later, CI workflow
 - [x] Pages on X-Libs' widgets and Halon
-- [ ] Delete `src-tauri/` once the Electron app has been used for a while
+- [x] Delete the Tauri shell; its icons are in `resources/icons/`
 
 ### Phase 9 — Production Hardening
 - [ ] Package installers (AppImage / deb / dmg / msi) for the Electron app
