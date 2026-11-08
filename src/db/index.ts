@@ -1,4 +1,5 @@
 import { db } from './client'
+import { history_watch, subscriptions_watch } from './watches'
 import type { UserSettings, Subscription, WatchHistoryEntry, CachedVideo, ChannelVideoCache } from '../types'
 
 export { db }
@@ -130,7 +131,7 @@ export async function subscribe(
     subscribedAt: existing?.subscribedAt ?? new Date().toISOString(),
   }
   await db().put(doc)
-  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('subscriptions-changed'))
+  subscriptions_watch.bump()
 }
 
 export async function unsubscribe(channelId: string): Promise<void> {
@@ -140,7 +141,7 @@ export async function unsubscribe(channelId: string): Promise<void> {
   } catch {
     // Already gone — treat as success
   }
-  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('subscriptions-changed'))
+  subscriptions_watch.bump()
 }
 
 // ─── Watch History ────────────────────────────────────────────────────────────
@@ -150,7 +151,7 @@ export async function unsubscribe(channelId: string): Promise<void> {
 function historyId(videoId: string): string { return `history-${videoId}` }
 
 function emitHistoryChanged() {
-  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('history-changed'))
+  history_watch.bump()
 }
 
 export async function recordWatch(

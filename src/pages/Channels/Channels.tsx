@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { SearchBox, Switch } from '@x-tech-laboratories/x-libs/web/react/controls'
 import { Empty, Loaded, use_resource } from '@x-tech-laboratories/x-libs/web/react/states'
 import { getSubscriptions, getWatchedChannelIds, getSettings, saveSettings } from '../../db/index'
+import { history_watch } from '../../db/watches'
 import PageLayout from '../../components/PageLayout'
 import ChannelCard from '../../components/ChannelCard'
 
@@ -11,16 +12,10 @@ async function load_channels() {
 }
 
 export default function Channels() {
-  const channels = use_resource(load_channels, [])
+  const channels = use_resource(load_channels, [], { watch: history_watch })
   const [unsubscribed, setUnsubscribed] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState('')
   const [hideWatched, setHideWatched] = useState<boolean | null>(null)
-
-  useEffect(() => {
-    const refresh = () => void channels.reload(true)
-    window.addEventListener('history-changed', refresh)
-    return () => window.removeEventListener('history-changed', refresh)
-  }, [])
 
   const subs = (channels.data?.subscriptions ?? []).filter(sub => !unsubscribed.has(sub.channelId))
   const hide = hideWatched ?? channels.data?.hide_watched ?? false

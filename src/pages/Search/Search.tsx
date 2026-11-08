@@ -5,6 +5,7 @@ import { MediaGrid, MediaTile } from '@x-tech-laboratories/x-libs/web/react/medi
 import { Empty, Loaded, use_resource } from '@x-tech-laboratories/x-libs/web/react/states'
 import { pluginManager } from '../../plugins/manager'
 import { getSettings, getWatchedVideoIds } from '../../db/index'
+import { history_watch } from '../../db/watches'
 import { formatViews } from '../../utils/format'
 import ChannelCard from '../../components/ChannelCard'
 import PageLayout from '../../components/PageLayout'
@@ -24,13 +25,7 @@ async function load_watched() {
 
 function VideoResults({ query }: { query: string }) {
   const results = use_resource(async () => pluginManager.getActive().search(query), [query])
-  const watched = use_resource(load_watched, [])
-
-  useEffect(() => {
-    const refresh = () => void watched.reload(true)
-    window.addEventListener('history-changed', refresh)
-    return () => window.removeEventListener('history-changed', refresh)
-  }, [])
+  const watched = use_resource(load_watched, [], { watch: history_watch })
 
   const style = watched.data?.style ?? 'normal'
   const watched_ids = watched.data?.ids ?? new Set<string>()

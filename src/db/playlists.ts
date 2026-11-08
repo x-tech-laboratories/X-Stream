@@ -9,6 +9,7 @@
 // without a network round trip.
 
 import { db } from './client'
+import { playlists_watch } from './watches'
 import type {
   AnyPlaylist, PersonalPlaylist, SubscribedPlaylist, PlaylistVideo,
 } from '../types'
@@ -20,9 +21,7 @@ function personalId(playlistId: string): string { return `${PERSONAL_PREFIX}${pl
 function subscribedId(playlistId: string): string { return `${SUBSCRIBED_PREFIX}${playlistId}` }
 
 function emitPlaylistsChanged() {
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('playlists-changed'))
-  }
+  playlists_watch.bump()
 }
 
 /** Sufficiently unique for a local-only id, and readable in the URL. */

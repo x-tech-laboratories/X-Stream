@@ -9,6 +9,17 @@ interface SabrPlayerProps {
   onReady?: (getCurrentTime: () => number) => void
 }
 
+// Shaka's errors are plain objects with a numeric code, so they are named by category and code.
+function describe_playback_error(error: unknown): string {
+  if (error instanceof Error) return error.message
+  const shaka_error = error as { code?: number; category?: number; message?: string; data?: unknown[] }
+  if (typeof shaka_error?.code === 'number') {
+    const detail = shaka_error.data?.find(item => typeof item === 'string')
+    return `Playback failed (shaka error ${shaka_error.category}.${shaka_error.code}${detail ? `: ${detail}` : ''}).`
+  }
+  return 'Playback failed.'
+}
+
 /**
  * Plays a video over SABR — YouTube's current streaming protocol — using
  * shaka-player and googlevideo's streaming adapter.
@@ -119,9 +130,10 @@ export default function SabrPlayer({ videoId, title, onReady }: SabrPlayerProps)
         }
         void cpn
       } catch (e) {
+        console.error('[SabrPlayer]', e)
         if (!cancelled) {
           setPhase(null)
-          setError(e instanceof Error ? e.message : 'Playback failed.')
+          setError(describe_playback_error(e))
         }
       }
     })()

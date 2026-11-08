@@ -10,7 +10,7 @@
 //    never play protected content.
 
 import shaka from 'shaka-player/dist/shaka-player.ui'
-import { FormatKeyUtils, isGoogleVideoURL } from 'googlevideo/utils'
+import { createSegmentCacheKeyFromMetadata, getUniqueFormatId } from 'googlevideo/utils'
 import type { CacheManager, RequestMetadataManager } from 'googlevideo/utils'
 import type { SabrFormat } from 'googlevideo/shared-types'
 import {
@@ -22,6 +22,33 @@ import {
   type UmpProcessingResult,
 } from 'googlevideo/sabr-streaming-adapter'
 import { desktop_fetch } from '../utils/desktop'
+
+// True for the sabr: scheme and any googlevideo playback URL, live paths included.
+function isGoogleVideoURL(url: string): boolean {
+  if (url.startsWith('sabr://')) return true
+
+  const [path, query = ''] = url.split('?')
+  if (path.endsWith('/videoplayback')) {
+    const params = new URLSearchParams(query)
+    return params.get('source') === 'youtube' || params.has('sabr') || params.has('lsig') || params.has('expire')
+  }
+  if (path.includes('/videoplayback/')) {
+    const parts = path.split('/')
+    return ['videoplayback', 'sabr', 'lsig', 'expire'].some(part => parts.includes(part))
+  }
+  return false
+}
+
+// The main process hands a whole response over at once, and the processor keeps only the last finished segment of a chunk, so chunks are fed in slices and the first finished segment wins.
+const UMP_SLICE_BYTES = 4096
+
+async function processInSlices(reader: SabrUmpProcessor, bytes: Uint8Array): Promise<UmpProcessingResult | undefined> {
+  for (let offset = 0; offset < bytes.byteLength; offset += UMP_SLICE_BYTES) {
+    const result = await reader.processChunk(bytes.subarray(offset, offset + UMP_SLICE_BYTES))
+    if (result) return result
+  }
+  return undefined
+}
 
 function headersToObject(headers: Headers): Record<string, string> {
   const result: Record<string, string> = {}
@@ -163,7 +190,7 @@ export class ShakaPlayerAdapter implements SabrPlayerAdapter {
   ): Promise<shaka.extern.Response | null> {
     if (!metadata.byteRange || !this.cacheManager) return null
 
-    const key = FormatKeyUtils.createSegmentCacheKeyFromMetadata(metadata)
+    const key = createSegmentCacheKeyFromMetadata(metadata)
     let buffer = (metadata.isInit
       ? this.cacheManager.getInitSegment(key)
       : this.cacheManager.getSegment(key))?.buffer as ArrayBuffer | undefined
@@ -212,7 +239,7 @@ export class ShakaPlayerAdapter implements SabrPlayerAdapter {
       const buffer = await response.arrayBuffer()
       progressUpdated(Date.now() - lastTime, buffer.byteLength, 0)
 
-      const result = await reader.processChunk(new Uint8Array(buffer))
+      const result = await processInSlices(reader, new Uint8Array(buffer))
       if (result) {
         checkIntegrity(result)
         return this.toShakaResponse(uri, request, requestType, response, result.data)
@@ -239,11 +266,11 @@ export class ShakaPlayerAdapter implements SabrPlayerAdapter {
         throw recoverableError('Empty response with no redirect information', metadata as any)
       }
 
-      const result = await reader.processChunk(chunk.value)
+      const result = await processInSlices(reader, chunk.value)
       const segmentInfo = reader.getSegmentInfo()
 
       if (segmentInfo) {
-        contentLength ??= segmentInfo.mediaHeader.contentLength
+        contentLength ??= segmentInfo.mediaHeader.segmentLengthBytes
         loaded += segmentInfo.lastChunkSize || 0
         segmentInfo.lastChunkSize = 0
       }
@@ -372,13 +399,13 @@ export class ShakaPlayerAdapter implements SabrPlayerAdapter {
     audioFormat?: SabrFormat
   } {
     this.assertPlayer()
-    const activeId = FormatKeyUtils.getUniqueFormatId(activeFormat)
+    const activeId = getUniqueFormatId(activeFormat)
     const variant = this.player.getVariantTracks().find(track =>
       activeId === (activeFormat.width ? track.originalVideoId : track.originalAudioId),
     )
     if (!variant) return {}
 
-    const byId = new Map(sabrFormats.map(f => [FormatKeyUtils.getUniqueFormatId(f), f]))
+    const byId = new Map(sabrFormats.map(f => [getUniqueFormatId(f), f]))
     return {
       videoFormat: variant.originalVideoId ? byId.get(variant.originalVideoId) : undefined,
       audioFormat: variant.originalAudioId ? byId.get(variant.originalAudioId) : undefined,

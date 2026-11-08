@@ -31,7 +31,7 @@ function desktop_api(): Client<XStreamApi> {
 // YouTube payload repairs
 // ============================================================================
 
-// Patches two comment payload changes youtubei.js 17.2.0 cannot parse: a missing avatar, and replies moved to subThreads.
+// Patches two comment payload shapes the parser trips on: a missing avatar, and replies moved to subThreads.
 export function repairYouTubePayload(node: unknown): void {
   if (!node || typeof node !== 'object') return
   const obj = node as Record<string, any>

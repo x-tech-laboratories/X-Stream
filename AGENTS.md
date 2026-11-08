@@ -9,8 +9,7 @@ X-Stream/
 ├── src/preload/     Puts the main process's methods on the page as window.x_stream
 ├── src/shared/      The bridge's method table, shared by main, preload and page
 ├── resources/       The app's icons
-├── server/          Optional Node.js REST API (Fastify + PouchDB + youtubei.js + yt-dlp)
-└── shell.nix        Nix dev shell (Node 24, Electron, yt-dlp, git)
+└── shell.nix        Nix dev shell (Node 24, Electron, git)
 ```
 
 Full architecture and roadmap are in [DEVELOP.md](DEVELOP.md).
@@ -20,8 +19,7 @@ Full architecture and roadmap are in [DEVELOP.md](DEVELOP.md).
 All development happens inside the Nix shell. Enter it once at the start of a session:
 
 ```bash
-nix-shell   # provides Node 24, npm, Electron, yt-dlp, git
-            # also sets XSTREAM_SERVER_PATH=$(pwd)/server
+nix-shell   # provides Node 24, npm, Electron, git
 ```
 
 - **Install libraries here** — never `npm install` outside the shell
@@ -31,24 +29,9 @@ nix-shell   # provides Node 24, npm, Electron, yt-dlp, git
 ## Running things
 
 ```bash
-# Desktop app — this is the whole app; no server required
+# Desktop app — this is the whole app
 npm run dev
-
-# Optional API server (port 7700); the app does not use it
-cd server && npm run dev
 ```
-
-## Server (`server/`)
-
-- **Framework**: Fastify 5, ESM, TypeScript via `tsx`
-- **DB**: PouchDB 9 on LevelDB (`~/.x-stream/db` or `$XSTREAM_DB_PATH`)
-- **YouTube**: youtubei.js Innertube singleton in `server/src/innertube.ts` — no CORS workarounds needed
-- **yt-dlp**: spawned from `server/src/ytdlp.ts`; path via `$YTDLP_PATH`
-- **Port**: 7700 (override via `$XSTREAM_PORT`)
-- **Auth**: optional `X-Api-Key` header via `$XSTREAM_API_KEY`
-- All routes are under `/api/` — see `server/src/routes/`
-
-Adding a route: create `server/src/routes/<name>.ts` exporting a default Fastify plugin, then register it in `server/src/index.ts`.
 
 ## React UI (`src/`) + Electron (`src/main/`, `src/preload/`)
 
@@ -123,14 +106,11 @@ Adding a page: create `src/pages/<Name>/<Name>.tsx` (+ `.css`, `index.ts`), then
 | Type-check | `npm run typecheck` |
 | Desktop dev | `npm run dev` |
 | Desktop build | `npm run build` (into `out/`), then `npm start` |
-| Server dev | `cd server && npm run dev` |
 
 ## Conventions
 
 - TypeScript strict mode everywhere; no `any` unless unavoidable and documented
-- No barrel `index.ts` re-exports in `server/` — import from the exact file
 - React: pages live in `src/pages/<Name>/`, shared UI in `src/components/<Name>/`; each folder has an `index.ts` re-export
-- Server route files export a single default Fastify plugin function
 - PouchDB document IDs use a typed prefix: `sub-<channelId>`, `history-<videoId>`, `settings`, `channel-cache-<channelId>`
 
 ## Documentation
@@ -139,7 +119,6 @@ Keep documentation in sync with every code change:
 
 - **`AGENTS.md`** — update whenever commands, conventions, or project structure change
 - **`DEVELOP.md`** — update the relevant section when adding or removing a significant capability; tick roadmap checkboxes as items complete
-- **`server/src/types.ts` ↔ `src/types/index.ts`** — keep the shared API/data types in sync when the contract changes
 
 Do not create separate design or decision documents — use the conversation and `DEVELOP.md` instead.
 
@@ -150,10 +129,6 @@ Run the relevant suite before committing:
 ```bash
 # Vitest: the files covering what changed
 npx vitest run tests/<file>.test.ts
-
-# Server smoke test (no test suite yet)
-cd server && npm run dev &
-curl -s http://localhost:7700/api/health
 ```
 
 All tests must pass before committing. If a test suite doesn't exist for the changed area, note it explicitly.

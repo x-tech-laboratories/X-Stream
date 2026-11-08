@@ -6,6 +6,7 @@ import { use_reveal } from '@x-tech-laboratories/x-libs/web/react/reveal'
 import { Empty, Loaded, use_resource } from '@x-tech-laboratories/x-libs/web/react/states'
 import { Age } from '@x-tech-laboratories/x-libs/web/react/time'
 import { getHistory, removeFromHistory, clearHistory } from '../../db/index'
+import { history_watch } from '../../db/watches'
 import PageLayout from '../../components/PageLayout'
 import VideoCard from '../../components/VideoCard'
 import { thumbnailUrl } from '../../utils/avatar'
@@ -24,7 +25,7 @@ function left_at(): { count: number; scroll_y: number } {
 }
 
 export default function History() {
-  const history = use_resource(getHistory, [])
+  const history = use_resource(getHistory, [], { watch: history_watch })
   const [removed, setRemoved] = useState<Set<string>>(new Set())
   const [start] = useState(left_at)
   const { shown_count, more_ref, reset } = use_reveal(PAGE_SIZE, { initial_count: start.count })
@@ -32,13 +33,8 @@ export default function History() {
   shown_count_now.current = shown_count
   const scroll_restored = useRef(false)
 
-  useEffect(() => {
-    const refresh = () => void history.reload(true)
-    window.addEventListener('history-changed', refresh)
-    return () => {
-      window.removeEventListener('history-changed', refresh)
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ scrollY: window.scrollY, count: shown_count_now.current }))
-    }
+  useEffect(() => () => {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ scrollY: window.scrollY, count: shown_count_now.current }))
   }, [])
 
   useEffect(() => {
