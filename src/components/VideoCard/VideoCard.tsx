@@ -1,12 +1,14 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import VideoThumbnail from '../VideoThumbnail'
-import VideoMenu, { type VideoMenuAction } from '../VideoMenu'
-import PlaylistPicker from '../PlaylistPicker'
+import { format_clock } from '@x-tech-laboratories/x-libs/durations'
+import { MediaTile } from '@x-tech-laboratories/x-libs/web/react/media'
+import { MenuButton } from '@x-tech-laboratories/x-libs/web/react/menu_button'
+import type { MenuItem } from '@x-tech-laboratories/x-libs/web/react/menus'
+import { Age } from '@x-tech-laboratories/x-libs/web/react/time'
+import { toast } from '@x-tech-laboratories/x-libs/web/react/toasts'
 import { recordWatch } from '../../db/index'
-import { formatViews, timeAgo } from '../../utils/format'
+import { formatViews } from '../../utils/format'
 import { openInBrowser } from '../../utils/desktop'
-import './VideoCard.css'
+import { pick_playlists_for } from '../../utils/playlist_picker'
 
 interface VideoCardProps {
   videoId: string
@@ -16,21 +18,31 @@ interface VideoCardProps {
   channelId?: string
   channelName?: string
   dimmed?: boolean
-  /** Overrides the default views/upload-date line. */
+  // Replaces the views and upload date line.
   meta?: React.ReactNode
   viewCount?: number
   publishedAt?: string
-  /** Pre-formatted by YouTube, e.g. "1.4M views" / "2 weeks ago". */
+  // Already written by YouTube, such as "1.4M views" and "2 weeks ago".
   viewCountText?: string
   publishedText?: string
   onRemove?: () => void
   removeLabel?: string
-  /** Called after the video is marked watched, so lists can refresh. */
+  // Called once the video is marked watched, so lists can refresh.
   onMarkWatched?: () => void
 }
 
-function watchUrl(videoId: string): string {
-  return `https://www.youtube.com/watch?v=${videoId}`
+export function watch_url(video_id: string): string {
+  return `https://www.youtube.com/watch?v=${video_id}`
+}
+
+// Copies the text and says so, or says the copy failed.
+export function copy_text(text: string, done_message: string): void {
+  navigator.clipboard.writeText(text).then(() => toast(done_message), () => toast('Could not copy the link.'))
+}
+
+// A video's length over its thumbnail, or nothing for a live or unknown one.
+export function video_length(seconds?: number): string | undefined {
+  return seconds ? format_clock(seconds * 1000) : undefined
 }
 
 export default function VideoCard({
@@ -39,89 +51,48 @@ export default function VideoCard({
   dimmed, meta, viewCount, publishedAt, viewCountText, publishedText,
   onRemove, removeLabel, onMarkWatched,
 }: VideoCardProps) {
-  const [pickerOpen, setPickerOpen] = useState(false)
+  const views = viewCountText ?? (viewCount !== undefined ? formatViews(viewCount) : undefined)
+  const uploaded = publishedText ?? (publishedAt ? <Age epoch={Date.parse(publishedAt) / 1000} /> : undefined)
 
-  // YouTube's listing APIs return these already humanized ("1.4M views",
-  // "2 weeks ago"); fall back to formatting raw values when they don't.
-  const views = viewCountText
-    ?? (viewCount !== undefined ? formatViews(viewCount) : undefined)
-  const uploaded = publishedText
-    ?? (publishedAt ? timeAgo(publishedAt) : undefined)
-  const stats = [views, uploaded].filter(Boolean)
-  const actions: VideoMenuAction[] = [
+  const menu_items = (): MenuItem[] => [
     {
       label: 'Mark as watched',
-      confirmation: 'Marked as watched',
-      onSelect: async () => {
-        await recordWatch(
-          videoId, title, channelId ?? '', channelName ?? '',
-          thumbnail ?? '', duration ?? 0,
-        )
-        onMarkWatched?.()
+      run: () => {
+        recordWatch(videoId, title, channelId ?? '', channelName ?? '', thumbnail ?? '', duration ?? 0)
+          .then(() => { toast('Marked as watched.'); onMarkWatched?.() })
+          .catch(() => toast('Could not mark it as watched.'))
       },
     },
-    {
-      label: 'Open in YouTube',
-      onSelect: () => openInBrowser(watchUrl(videoId)),
-    },
-    {
-      label: 'Copy link',
-      confirmation: 'Link copied',
-      onSelect: () => navigator.clipboard.writeText(watchUrl(videoId)),
-    },
+    { label: 'Open in YouTube', run: () => void openInBrowser(watch_url(videoId)) },
+    { label: 'Copy link', run: () => copy_text(watch_url(videoId), 'Link copied.') },
     {
       label: 'Add to playlist',
-      onSelect: () => setPickerOpen(true),
+      run: () => pick_playlists_for({
+        videoId, title,
+        channelId: channelId ?? '',
+        channelName: channelName ?? '',
+        thumbnail: thumbnail ?? '',
+        duration: duration ?? 0,
+        viewCountText, publishedText,
+      }),
     },
   ]
 
   return (
-    <li className={`video-card${dimmed ? ' video-card-dim' : ''}`}>
-      <Link to={`/watch/${videoId}`} className="video-card-thumb-link">
-        <VideoThumbnail src={thumbnail} duration={duration} />
-      </Link>
-      <div className="video-card-info">
-        <Link to={`/watch/${videoId}`} className="video-card-title">{title}</Link>
-        {channelId && channelName && (
-          <Link to={`/channel/${channelId}`} className="video-card-channel">{channelName}</Link>
-        )}
-        {meta != null
-          ? <p className="video-card-meta">{meta}</p>
-          : stats.length > 0 && (
-              <p className="video-card-meta">{stats.join(' · ')}</p>
-            )}
-      </div>
-      {/* Shifted left when a remove button shares the corner. */}
-      <VideoMenu
-        actions={actions}
-        label={`Options for ${title}`}
-        offset={onRemove ? 32 : 4}
-      />
-      {pickerOpen && (
-        <PlaylistPicker
-          video={{
-            videoId,
-            title,
-            channelId: channelId ?? '',
-            channelName: channelName ?? '',
-            thumbnail: thumbnail ?? '',
-            duration: duration ?? 0,
-            viewCountText,
-            publishedText,
-          }}
-          onClose={() => setPickerOpen(false)}
-        />
-      )}
-      {onRemove && (
-        <button
-          className="video-card-remove"
-          onClick={onRemove}
-          aria-label={removeLabel}
-          title="Remove"
-        >
-          ✕
-        </button>
-      )}
-    </li>
+    <MediaTile
+      title={title}
+      href={`#/watch/${videoId}`}
+      image={thumbnail}
+      corner={video_length(duration)}
+      dimmed={dimmed}
+      lines={[
+        channelId && channelName && <Link to={`/channel/${channelId}`}>{channelName}</Link>,
+        meta ?? ((views || uploaded) && <>{views}{views && uploaded && ' · '}{uploaded}</>),
+      ]}
+      actions={<>
+        <MenuButton label={`Options for ${title}`} items={menu_items} />
+        {onRemove && <button type="button" className="icon" onClick={onRemove} aria-label={removeLabel} title="Remove">✕</button>}
+      </>}
+    />
   )
 }

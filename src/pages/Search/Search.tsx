@@ -1,180 +1,112 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
+import { Tabs } from '@x-tech-laboratories/x-libs/web/react/layout'
+import { MediaGrid, MediaTile } from '@x-tech-laboratories/x-libs/web/react/media'
+import { Empty, Loaded, use_resource } from '@x-tech-laboratories/x-libs/web/react/states'
 import { pluginManager } from '../../plugins/manager'
 import { getSettings, getWatchedVideoIds } from '../../db/index'
-import VideoThumbnail from '../../components/VideoThumbnail'
 import { formatViews } from '../../utils/format'
 import ChannelCard from '../../components/ChannelCard'
-import type { SearchResult, ChannelSearchResult } from '../../plugins/types'
-import './Search.css'
+import PageLayout from '../../components/PageLayout'
+import { video_length } from '../../components/VideoCard/VideoCard'
+import type { SearchResult } from '../../plugins/types'
 
 type SearchTab = 'videos' | 'channels'
 
-type State =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'error'; message: string }
-  | { status: 'ready'; results: SearchResult[] }
+async function load_watched() {
+  const [settings, ids] = await Promise.all([getSettings(), getWatchedVideoIds()])
+  return { style: settings.watchedVideoStyle ?? 'normal', ids }
+}
 
-type ChannelState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'ready'; results: ChannelSearchResult[] }
+// ============================================================================
+// Results
+// ============================================================================
 
-export default function Search() {
-  const [params] = useSearchParams()
-  const query = params.get('q') ?? ''
-  const [state, setState] = useState<State>({ status: 'idle' })
-  const [watchedIds, setWatchedIds] = useState<Set<string>>(new Set())
-  const [watchedStyle, setWatchedStyle] = useState<'normal' | 'dim' | 'hide'>('normal')
-  const [tab, setTab] = useState<SearchTab>('videos')
-  const [channelState, setChannelState] = useState<ChannelState>({ status: 'idle' })
+function VideoResults({ query }: { query: string }) {
+  const results = use_resource(async () => pluginManager.getActive().search(query), [query])
+  const watched = use_resource(load_watched, [])
 
   useEffect(() => {
-    Promise.all([getSettings(), getWatchedVideoIds()])
-      .then(([settings, ids]) => {
-        setWatchedStyle(settings.watchedVideoStyle ?? 'normal')
-        setWatchedIds(ids)
-      })
-      .catch(() => {})
-
-    const refresh = () => {
-      Promise.all([getSettings(), getWatchedVideoIds()])
-        .then(([settings, ids]) => {
-          setWatchedStyle(settings.watchedVideoStyle ?? 'normal')
-          setWatchedIds(ids)
-        })
-        .catch(() => {})
-    }
+    const refresh = () => void watched.reload(true)
     window.addEventListener('history-changed', refresh)
     return () => window.removeEventListener('history-changed', refresh)
   }, [])
 
-  useEffect(() => {
-    if (!query) { setState({ status: 'idle' }); return }
-
-    setState({ status: 'loading' })
-    let cancelled = false
-
-    let plugin
-    try { plugin = pluginManager.getActive() }
-    catch { setState({ status: 'error', message: 'No video plugin available.' }); return }
-
-    plugin
-      .search(query)
-      .then(results => { if (!cancelled) setState({ status: 'ready', results }) })
-      .catch((err: Error) => { if (!cancelled) setState({ status: 'error', message: err.message }) })
-
-    return () => { cancelled = true }
-  }, [query])
-
-  useEffect(() => { setTab('videos'); setChannelState({ status: 'idle' }) }, [query])
-
-  // Channel results are a separate request, so only fetch them if asked for.
-  useEffect(() => {
-    if (tab !== 'channels' || channelState.status !== 'idle' || !query) return
-    const plugin = pluginManager.getActive()
-    if (!plugin.searchChannels) { setChannelState({ status: 'ready', results: [] }); return }
-
-    let cancelled = false
-    setChannelState({ status: 'loading' })
-    plugin
-      .searchChannels(query)
-      .then(results => { if (!cancelled) setChannelState({ status: 'ready', results }) })
-      .catch(() => { if (!cancelled) setChannelState({ status: 'ready', results: [] }) })
-    return () => { cancelled = true }
-  }, [tab, query, channelState.status])
-
-  if (!query) {
-    return <p className="search-hint">Enter a search term or paste a YouTube URL in the bar above.</p>
-  }
-
-  if (state.status === 'error') {
-    return <p className="search-status search-error">{state.message}</p>
-  }
-
-  const visibleResults = state.status === 'ready'
-    ? (watchedStyle === 'hide'
-        ? state.results.filter(r => !watchedIds.has(r.videoId))
-        : state.results)
-    : []
+  const style = watched.data?.style ?? 'normal'
+  const watched_ids = watched.data?.ids ?? new Set<string>()
+  const shown = (found: SearchResult[]) => style === 'hide' ? found.filter(result => !watched_ids.has(result.videoId)) : found
 
   return (
-    <div className="search-page">
-      <h2 className="search-heading">Results for "{query}"</h2>
+    <Loaded resource={results} lines={4}>
+      {found => shown(found).length === 0
+        ? <Empty title={`No videos for "${query}".`} />
+        : (
+          <MediaGrid rows label="Videos">
+            {shown(found).map(result => {
+              // YouTube writes these itself; a raw count is formatted only when it does not.
+              const views = result.viewCountText ?? (result.viewCount !== undefined ? formatViews(result.viewCount) : undefined)
+              return (
+                <MediaTile
+                  key={result.videoId}
+                  title={result.title}
+                  href={`#/watch/${result.videoId}`}
+                  image={result.thumbnail}
+                  corner={video_length(result.duration)}
+                  dimmed={watched_ids.has(result.videoId) && style === 'dim'}
+                  lines={[
+                    <Link to={`/channel/${result.channelId}`}>{result.channelName}</Link>,
+                    [views, result.publishedText].filter(Boolean).join(' · '),
+                  ]}
+                />
+              )
+            })}
+          </MediaGrid>
+        )}
+    </Loaded>
+  )
+}
 
-      <div className="search-tabs">
-        <button
-          className={`search-tab${tab === 'videos' ? ' active' : ''}`}
-          onClick={() => setTab('videos')}
-        >
-          Videos
-        </button>
-        <button
-          className={`search-tab${tab === 'channels' ? ' active' : ''}`}
-          onClick={() => setTab('channels')}
-        >
-          Channels
-        </button>
-      </div>
+// Channel results are a request of their own, so they load only when their tab is opened.
+function ChannelResults({ query }: { query: string }) {
+  const results = use_resource(async () => {
+    const plugin = pluginManager.getActive()
+    return plugin.searchChannels ? plugin.searchChannels(query) : []
+  }, [query])
 
-      {tab === 'videos' && (
-        state.status === 'loading'
-          ? <p className="search-status">Searching…</p>
-          : visibleResults.length === 0
-            ? <p className="search-status">No videos for "{query}".</p>
-            : (
-              <ul className="search-results">
-                {visibleResults.map(r => {
-                  const isWatched = watchedIds.has(r.videoId)
-                  const cardClass = `result-card${isWatched && watchedStyle === 'dim' ? ' result-watched-dim' : ''}`
-                  return (
-                    <li key={r.videoId} className={cardClass}>
-                      <Link to={`/watch/${r.videoId}`} className="result-thumb-wrap">
-                        <VideoThumbnail src={r.thumbnail} duration={r.duration} />
-                      </Link>
-                      <div className="result-info">
-                        <Link to={`/watch/${r.videoId}`} className="result-title">{r.title}</Link>
-                        <Link to={`/channel/${r.channelId}`} className="result-channel">
-                          {r.channelName}
-                        </Link>
-                        {(() => {
-                          // YouTube supplies these already humanized; fall back to
-                          // formatting a raw count when it doesn't.
-                          const views = r.viewCountText
-                            ?? (r.viewCount !== undefined ? formatViews(r.viewCount) : undefined)
-                          const stats = [views, r.publishedText].filter(Boolean)
-                          return stats.length > 0 && (
-                            <p className="result-views">{stats.join(' · ')}</p>
-                          )
-                        })()}
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            )
-      )}
+  return (
+    <Loaded resource={results} lines={4}>
+      {found => found.length === 0
+        ? <Empty title={`No channels for "${query}".`} />
+        : (
+          <div className="grid channel-grid" role="list" aria-label="Channels">
+            {found.map(channel => (
+              <ChannelCard key={channel.channelId} channelId={channel.channelId} name={channel.name} avatar={channel.avatar} meta={channel.subscriberCountText} />
+            ))}
+          </div>
+        )}
+    </Loaded>
+  )
+}
 
-      {tab === 'channels' && (
-        channelState.status !== 'ready'
-          ? <p className="search-status">Searching…</p>
-          : channelState.results.length === 0
-            ? <p className="search-status">No channels for "{query}".</p>
-            : (
-              <ul className="channel-grid">
-                {channelState.results.map(c => (
-                  <ChannelCard
-                    key={c.channelId}
-                    channelId={c.channelId}
-                    name={c.name}
-                    avatar={c.avatar}
-                    meta={c.subscriberCountText}
-                  />
-                ))}
-              </ul>
-            )
-      )}
-    </div>
+// ============================================================================
+// Search
+// ============================================================================
+
+export default function Search() {
+  const [params] = useSearchParams()
+  const query = params.get('q') ?? ''
+  const [tab, setTab] = useState<SearchTab>('videos')
+
+  useEffect(() => setTab('videos'), [query])
+
+  if (!query) return <Empty title="Nothing searched yet." hint="Enter a search term or paste a YouTube URL in the bar above." />
+
+  return (
+    <PageLayout
+      title={`Results for "${query}"`}
+      tabs={<Tabs<SearchTab> label="Results" items={[{ id: 'videos', label: 'Videos' }, { id: 'channels', label: 'Channels' }]} active={tab} on_select={setTab} />}
+    >
+      {tab === 'videos' ? <VideoResults query={query} /> : <ChannelResults query={query} />}
+    </PageLayout>
   )
 }

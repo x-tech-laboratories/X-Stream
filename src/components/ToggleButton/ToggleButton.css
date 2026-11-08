@@ -1,7 +1,0 @@
-/* Active state overrides btn-secondary hover */
-.toggle-btn-active,
-.toggle-btn-active:hover {
-  border-color: var(--accent);
-  background: var(--accent-bg);
-  color: var(--accent);
-}

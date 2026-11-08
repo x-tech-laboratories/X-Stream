@@ -1,53 +1,50 @@
-import { useEffect, useRef, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useParams } from 'react-router-dom'
+import { compact_count } from '@x-tech-laboratories/x-libs/web/format'
+import { Chip, Chips } from '@x-tech-laboratories/x-libs/web/react/badges'
+import { Select, Switch } from '@x-tech-laboratories/x-libs/web/react/controls'
+import { Facts, Tabs, type Fact, type TabItem } from '@x-tech-laboratories/x-libs/web/react/layout'
+import { Avatar, MediaGrid, MediaTile } from '@x-tech-laboratories/x-libs/web/react/media'
+import { use_reveal } from '@x-tech-laboratories/x-libs/web/react/reveal'
+import { Empty, Loaded, Skeleton, use_resource } from '@x-tech-laboratories/x-libs/web/react/states'
 import { pluginManager } from '../../plugins/manager'
-import type { ChannelInfo, SearchResult, ChannelPlaylist, FeaturedChannel } from '../../plugins/types'
+import type { ChannelInfo, SearchResult, ChannelPlaylist } from '../../plugins/types'
 import { isSubscribed, subscribe, unsubscribe, getSettings, saveSettings, getWatchedVideoIds } from '../../db/index'
 import { downloadAvatar } from '../../utils/avatar'
 import { getOrFetchChannelVideos } from '../../services/videoCache'
 import { getChannelInfoCached } from '../../services/metadata'
-import {
-  isPlaylistSubscribed, subscribeToPlaylist, unsubscribeFromPlaylist,
-} from '../../db/playlists'
+import { isPlaylistSubscribed, subscribeToPlaylist, unsubscribeFromPlaylist } from '../../db/playlists'
 import PageLayout from '../../components/PageLayout'
 import VideoCard from '../../components/VideoCard'
 import ChannelCard from '../../components/ChannelCard'
-import VideoThumbnail from '../../components/VideoThumbnail'
-import ToggleButton from '../../components/ToggleButton'
-import Button from '../../components/Button'
 import './Channel.css'
 
 type Tab = 'videos' | 'playlists' | 'channels'
 
 const PAGE_SIZE = 24
 
-// These are YouTube's own filter-chip names. Sorting happens server-side
-// because the only date we receive is a humanized label ("8 years ago"), which
-// dozens of videos share — local sorting cannot order them correctly.
+// YouTube's own filter names; YouTube sorts, since the only dates it gives are shared labels such as "8 years ago".
 type SortMode = 'Latest' | 'Popular' | 'Oldest'
 
-const SORT_OPTIONS: ReadonlyArray<{ value: SortMode; label: string }> = [
-  { value: 'Latest', label: 'Newest' },
-  { value: 'Oldest', label: 'Oldest' },
-  { value: 'Popular', label: 'Most popular' },
+const SORT_OPTIONS: [SortMode, string][] = [
+  ['Latest', 'Newest'],
+  ['Oldest', 'Oldest'],
+  ['Popular', 'Most popular'],
 ]
 
-/**
- * A playlist tile on a channel page. Subscribing snapshots the playlist's
- * contents locally, so it needs to fetch them before storing.
- */
-function ChannelPlaylistCard({ playlist, channelName, channelId }: {
-  playlist: ChannelPlaylist
-  channelName: string
-  channelId: string
-}) {
+// ============================================================================
+// Playlists
+// ============================================================================
+
+// A playlist on a channel page; subscribing stores a copy of its videos, so it fetches them first.
+function ChannelPlaylistTile({ playlist, channelName, channelId }: { playlist: ChannelPlaylist; channelName: string; channelId: string }) {
   const [subscribed, setSubscribed] = useState<boolean | null>(null)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     isPlaylistSubscribed(playlist.playlistId)
-      .then(v => { if (!cancelled) setSubscribed(v) })
+      .then(value => { if (!cancelled) setSubscribed(value) })
       .catch(() => { if (!cancelled) setSubscribed(false) })
     return () => { cancelled = true }
   }, [playlist.playlistId])
@@ -61,9 +58,7 @@ function ChannelPlaylistCard({ playlist, channelName, channelId }: {
         setSubscribed(false)
         return
       }
-      const plugin = pluginManager.getActive()
-      // Snapshot the contents; without them the stored playlist would be empty.
-      const detail = await plugin.getPlaylist?.(playlist.playlistId)
+      const detail = await pluginManager.getActive().getPlaylist?.(playlist.playlistId)
       await subscribeToPlaylist({
         playlistId: playlist.playlistId,
         title: detail?.title || playlist.title,
@@ -84,426 +79,279 @@ function ChannelPlaylistCard({ playlist, channelName, channelId }: {
       })
       setSubscribed(true)
     } catch {
-      // Leave the button as it was rather than claiming success.
+      // The button stays as it was rather than claiming success.
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <li className="video-card">
-      <Link to={`/playlist/yt/${playlist.playlistId}`} className="video-card-thumb-link">
-        <VideoThumbnail src={playlist.thumbnail} />
-      </Link>
-      <Link to={`/playlist/yt/${playlist.playlistId}`} className="video-card-title">
-        {playlist.title}
-      </Link>
-      {playlist.videoCount !== undefined && (
-        <p className="video-card-meta">{playlist.videoCount} videos</p>
-      )}
-      <Button
-        size="sm"
-        className={`playlist-sub-btn${subscribed ? ' subscribed' : ''}`}
-        onClick={toggle}
-        disabled={subscribed === null || busy}
-      >
-        {busy ? '…' : subscribed ? 'Subscribed' : 'Subscribe'}
-      </Button>
-    </li>
+    <MediaTile
+      title={playlist.title}
+      href={`#/playlist/yt/${playlist.playlistId}`}
+      image={playlist.thumbnail}
+      corner={playlist.videoCount !== undefined ? `${playlist.videoCount} videos` : undefined}
+      actions={
+        <button type="button" className={subscribed ? undefined : 'accent solid'} onClick={toggle} disabled={subscribed === null || busy} aria-label={`${subscribed ? 'Unsubscribe from' : 'Subscribe to'} ${playlist.title}`}>
+          {busy ? '…' : subscribed ? 'Subscribed' : 'Subscribe'}
+        </button>
+      }
+    />
   )
 }
 
-/** Channel details panel — joined date, totals, location, tags. */
-function ChannelDetails({ info }: { info: ChannelInfo }) {
-  const rows: Array<[string, string]> = []
-  if (info.joinedText) rows.push(['Joined', info.joinedText.replace(/^Joined\s+/i, '')])
-  if (info.totalViewsText) rows.push(['Views', info.totalViewsText.replace(/\s*views$/i, '')])
-  if (info.videoCountText) rows.push(['Videos', info.videoCountText.replace(/\s*videos?$/i, '')])
-  if (info.country) rows.push(['Location', info.country])
+// ============================================================================
+// Details
+// ============================================================================
 
+// When the channel joined, its totals, where it is, and its tags.
+function ChannelDetails({ info }: { info: ChannelInfo }) {
+  const facts: (Fact | false)[] = [
+    !!info.joinedText && ['Joined', info.joinedText.replace(/^Joined\s+/i, '')],
+    !!info.totalViewsText && ['Views', info.totalViewsText.replace(/\s*views$/i, '')],
+    !!info.videoCountText && ['Videos', info.videoCountText.replace(/\s*videos?$/i, '')],
+    !!info.country && ['Location', info.country],
+  ]
   const tags = info.tags ?? []
-  if (rows.length === 0 && tags.length === 0) return null
+  if (!facts.some(Boolean) && tags.length === 0) return null
 
   return (
-    <section className="channel-details">
-      <h3 className="channel-details-title">Details</h3>
-      <dl className="channel-details-list">
-        {rows.map(([label, value]) => (
-          <div key={label} className="channel-details-row">
-            <dt>{label}</dt>
-            <dd>{value}</dd>
-          </div>
-        ))}
-      </dl>
-      {tags.length > 0 && (
-        <>
-          <h3 className="channel-details-title">Tags</h3>
-          <ul className="channel-tags">
-            {tags.map(tag => <li key={tag} className="channel-tag">{tag}</li>)}
-          </ul>
-        </>
-      )}
+    <section className="channel-details" aria-label="Details">
+      <Facts rows={facts} />
+      {tags.length > 0 && <Chips>{tags.map(tag => <Chip key={tag}>{tag}</Chip>)}</Chips>}
     </section>
   )
 }
 
-export default function Channel() {
-  const { channelId } = useParams<{ channelId: string }>()
-  const [info, setInfo] = useState<ChannelInfo | null>(null)
+// ============================================================================
+// Videos
+// ============================================================================
+
+interface VideoOptions {
+  sort_mode: SortMode
+  // The search sent, which shows its results in place of the whole list until the box is cleared.
+  search: string
+  hide_watched: boolean
+  watched_style: 'normal' | 'dim' | 'hide'
+  watched_ids: Set<string>
+}
+
+function ChannelVideos({ channelId, options }: { channelId: string; options: VideoOptions }) {
+  const { sort_mode, search, hide_watched, watched_style, watched_ids } = options
   const [videos, setVideos] = useState<SearchResult[] | null>(null)
-  const [playlists, setPlaylists] = useState<ChannelPlaylist[] | null>(null)
-  const [featured, setFeatured] = useState<FeaturedChannel[] | null>(null)
+  const found = use_resource(async () => {
+    const plugin = pluginManager.getActive()
+    if (!search) return null
+    return plugin.searchChannelVideos ? plugin.searchChannelVideos(channelId, search) : []
+  }, [channelId, search])
+  const { shown_count, more_ref, reset } = use_reveal(PAGE_SIZE)
+
+  // Fetched again for each order, following continuations until the channel has no more.
+  useEffect(() => {
+    setVideos(null)
+    reset()
+    let cancelled = false
+    getOrFetchChannelVideos(channelId, fresh => {
+      if (!cancelled) setVideos(fresh as SearchResult[])
+    }, Infinity, sort_mode).then(cached => {
+      if (cached && !cancelled) setVideos(cached as SearchResult[])
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [channelId, sort_mode])
+
+  useEffect(reset, [search])
+
+  if (search && found.loading) return <Skeleton lines={4} />
+  const source = search ? found.data : videos
+  if (source === null) return <Skeleton lines={4} />
+  if (source.length === 0) return <Empty title={search ? `No videos matching "${search}".` : 'No videos found.'} />
+
+  const should_hide = hide_watched || watched_style === 'hide'
+  const visible = should_hide ? source.filter(video => !watched_ids.has(video.videoId)) : source
+
+  return (
+    <>
+      <MediaGrid label="Videos">
+        {visible.slice(0, shown_count).map(video => (
+          <VideoCard
+            key={video.videoId}
+            videoId={video.videoId}
+            title={video.title}
+            thumbnail={video.thumbnail}
+            duration={video.duration}
+            viewCountText={video.viewCountText}
+            publishedText={video.publishedText}
+            dimmed={watched_ids.has(video.videoId) && !should_hide && watched_style === 'dim'}
+          />
+        ))}
+      </MediaGrid>
+      {shown_count < visible.length && <div ref={more_ref} aria-hidden="true" />}
+    </>
+  )
+}
+
+// ============================================================================
+// Channel
+// ============================================================================
+
+export default function Channel() {
+  const { channelId = '' } = useParams<{ channelId: string }>()
+  return <ChannelView key={channelId} channelId={channelId} />
+}
+
+function ChannelView({ channelId }: { channelId: string }) {
   const [tab, setTab] = useState<Tab>('videos')
-  const [loadingInfo, setLoadingInfo] = useState(true)
-  const [loadingPlaylists, setLoadingPlaylists] = useState(false)
-  const [loadingFeatured, setLoadingFeatured] = useState(false)
-  const [error, setError] = useState('')
   const [subscribed, setSubscribed] = useState(false)
-  const [watchedIds, setWatchedIds] = useState<Set<string>>(new Set())
-  const [watchedStyle, setWatchedStyle] = useState<'normal' | 'dim' | 'hide'>('normal')
-  const [hideWatched, setHideWatched] = useState(false)
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const [playlistsOpened, setPlaylistsOpened] = useState(false)
   const [sortMode, setSortMode] = useState<SortMode>('Latest')
-  // Draft is what the user is typing; `search` is the submitted query. Kept
-  // apart so a request only fires on submit, not on every keystroke.
+  // What is typed, apart from the search sent, so a request goes only on Enter.
   const [searchDraft, setSearchDraft] = useState('')
   const [search, setSearch] = useState('')
-  const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null)
-  const [searching, setSearching] = useState(false)
-  const sentinelRef = useRef<HTMLDivElement>(null)
+  const [hideWatched, setHideWatched] = useState<boolean | null>(null)
+  const watched = use_resource(async () => {
+    const [settings, ids] = await Promise.all([getSettings(), getWatchedVideoIds()])
+    return { style: settings.watchedVideoStyle ?? 'normal', ids, hide: settings.channelPageHideWatched ?? false }
+  }, [])
+  const info = use_resource(async () => {
+    const channel = await getChannelInfoCached(channelId)
+    isSubscribed(channelId).then(async subbed => {
+      setSubscribed(subbed)
+      if (subbed && channel.avatar) {
+        const blob = await downloadAvatar(channel.avatar)
+        if (blob) subscribe(channel.channelId, channel.name, blob).catch(() => {})
+      }
+    }).catch(() => {})
+    return channel
+  }, [channelId])
+  // Loaded the first time their tab opens, then kept.
+  const playlists = use_resource(async () => {
+    if (!playlistsOpened) return null
+    const plugin = pluginManager.getActive()
+    return plugin.getChannelPlaylists ? plugin.getChannelPlaylists(channelId).catch(() => []) : []
+  }, [channelId, playlistsOpened])
+  // Loaded straight away, since the only way to know whether to show its tab is to look.
+  const featured = use_resource(async () => {
+    const plugin = pluginManager.getActive()
+    return plugin.getFeaturedChannels ? plugin.getFeaturedChannels(channelId).catch(() => []) : []
+  }, [channelId])
 
   useEffect(() => {
-    Promise.all([getSettings(), getWatchedVideoIds()])
-      .then(([settings, ids]) => {
-        setWatchedStyle(settings.watchedVideoStyle ?? 'normal')
-        setHideWatched(settings.channelPageHideWatched ?? false)
-        setWatchedIds(ids)
-      })
-      .catch(() => {})
-
-    const refresh = () => {
-      Promise.all([getSettings(), getWatchedVideoIds()])
-        .then(([settings, ids]) => {
-          setWatchedStyle(settings.watchedVideoStyle ?? 'normal')
-          setWatchedIds(ids)
-        })
-        .catch(() => {})
-    }
+    const refresh = () => void watched.reload(true)
     window.addEventListener('history-changed', refresh)
     return () => window.removeEventListener('history-changed', refresh)
   }, [])
 
-  // Channel identity — only refetched when navigating to a different channel.
-  useEffect(() => {
-    if (!channelId) return
-    setLoadingInfo(true)
-    setInfo(null)
-    setPlaylists(null)
-    // `featured` is owned by its own effect below — clearing it here would race
-    // with that fetch and blank out results it had already stored.
-    setTab('videos')
-    setError('')
-    setSortMode('Latest')
-    setSearchDraft('')
-    setSearch('')
-    setSearchResults(null)
+  const hide = hideWatched ?? watched.data?.hide ?? false
 
-    let cancelled = false
-    getChannelInfoCached(channelId)
-      .then(channelInfo => {
-        if (cancelled) return
-        setInfo(channelInfo)
-        setLoadingInfo(false)
-        isSubscribed(channelId).then(async subbed => {
-          setSubscribed(subbed)
-          if (subbed && channelInfo.avatar) {
-            const blob = await downloadAvatar(channelInfo.avatar)
-            if (blob) subscribe(channelInfo.channelId, channelInfo.name, blob).catch(() => {})
-          }
-        })
-      })
-      .catch((err: Error) => {
-        if (!cancelled) { setError(err.message); setLoadingInfo(false) }
-      })
-
-    return () => { cancelled = true }
-  }, [channelId])
-
-  // Video list — refetched per sort. Kept separate from the identity effect so
-  // switching sort doesn't blank the whole page while it reloads.
-  useEffect(() => {
-    if (!channelId) return
-    setVideos(null)
-    setVisibleCount(PAGE_SIZE)
-
-    let cancelled = false
-    // Infinity → follow continuations until the channel is exhausted. YouTube
-    // returns 30 per page, which used to be the hard cap on what was shown.
-    getOrFetchChannelVideos(channelId, fresh => {
-      if (!cancelled) setVideos(fresh as SearchResult[])
-    }, Infinity, sortMode).then(cached => {
-      if (cached && !cancelled) setVideos(cached as SearchResult[])
-    }).catch(() => {})
-
-    return () => { cancelled = true }
-  }, [channelId, sortMode])
-
-  useEffect(() => {
-    if (tab !== 'playlists' || playlists !== null || !channelId) return
-    const plugin = pluginManager.getActive()
-    if (!plugin.getChannelPlaylists) { setPlaylists([]); return }
-
-    setLoadingPlaylists(true)
-    plugin
-      .getChannelPlaylists(channelId)
-      .then(p => { setPlaylists(p); setLoadingPlaylists(false) })
-      .catch(() => { setPlaylists([]); setLoadingPlaylists(false) })
-  }, [tab, channelId, playlists])
-
-  // Loaded up front rather than on tab open: there is no flag telling us
-  // whether a channel features others, so the only way to know whether to show
-  // the tab is to look.
-  useEffect(() => {
-    if (!channelId) return
-    const plugin = pluginManager.getActive()
-    if (!plugin.getFeaturedChannels) { setFeatured([]); return }
-
-    let cancelled = false
-    setFeatured(null)
-    setLoadingFeatured(true)
-    plugin
-      .getFeaturedChannels(channelId)
-      .then(c => { if (!cancelled) { setFeatured(c); setLoadingFeatured(false) } })
-      .catch(() => { if (!cancelled) { setFeatured([]); setLoadingFeatured(false) } })
-    return () => { cancelled = true }
-  }, [channelId])
-
-  useEffect(() => {
-    if (!channelId || !search) { setSearchResults(null); return }
-    const plugin = pluginManager.getActive()
-    if (!plugin.searchChannelVideos) { setSearchResults([]); return }
-
-    let cancelled = false
-    setSearching(true)
-    setVisibleCount(PAGE_SIZE)
-    plugin
-      .searchChannelVideos(channelId, search)
-      .then(r => { if (!cancelled) { setSearchResults(r); setSearching(false) } })
-      .catch(() => { if (!cancelled) { setSearchResults([]); setSearching(false) } })
-    return () => { cancelled = true }
-  }, [channelId, search])
-
-  // Reveal another chunk of the grid when the sentinel scrolls into view.
-  useEffect(() => {
-    const el = sentinelRef.current
-    if (!el) return
-    const observer = new IntersectionObserver(
-      entries => { if (entries[0].isIntersecting) setVisibleCount(c => c + PAGE_SIZE) },
-      { rootMargin: '200px' },
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [videos, tab, visibleCount])
+  function chooseTab(next: Tab) {
+    setTab(next)
+    if (next === 'playlists') setPlaylistsOpened(true)
+  }
 
   async function toggleSubscribe() {
-    if (!channelId || !info) return
+    if (!info.data) return
     if (subscribed) {
       await unsubscribe(channelId)
       setSubscribed(false)
     } else {
-      await subscribe(channelId, info.name, info.avatar)
+      await subscribe(channelId, info.data.name, info.data.avatar)
       setSubscribed(true)
     }
   }
 
-  if (loadingInfo) return <div className="channel-status">Loading…</div>
-  if (error) return <div className="channel-status channel-error">{error}</div>
-  if (!info) return null
-
-  const shouldHide = hideWatched || watchedStyle === 'hide'
-
   return (
-    <PageLayout
-      className="channel-page"
-      title={info.name}
-      subtitle={info.subscriberCount !== undefined
-        ? `${info.subscriberCount.toLocaleString()} subscribers`
-        : undefined}
-      icon={info.avatar
-        ? <img className="channel-avatar" src={info.avatar} alt={info.name} />
-        : undefined}
-      actions={
-        <Button
-          className={`channel-sub-btn${subscribed ? ' subscribed' : ''}`}
-          onClick={toggleSubscribe}
-        >
-          {subscribed ? 'Subscribed' : 'Subscribe'}
-        </Button>
-      }
-      banner={info.banner}
-      extra={
-        <>
-          {info.description && (
-            <div className="channel-description">
-              <p>{info.description}</p>
-            </div>
-          )}
-          <ChannelDetails info={info} />
-        </>
-      }
-      tabs={
-        <div className="channel-tabs">
-          <button
-            className={`channel-tab${tab === 'videos' ? ' active' : ''}`}
-            onClick={() => setTab('videos')}
-          >
-            Videos
-          </button>
-          {info.hasPlaylists !== false && (
-            <button
-              className={`channel-tab${tab === 'playlists' ? ' active' : ''}`}
-              onClick={() => setTab('playlists')}
-            >
-              Playlists
-            </button>
-          )}
-          {(featured?.length ?? 0) > 0 && (
-            <button
-              className={`channel-tab${tab === 'channels' ? ' active' : ''}`}
-              onClick={() => setTab('channels')}
-            >
-              Channels
-            </button>
-          )}
-          {tab === 'videos' && (
-            <>
-              <form
-                className="channel-search"
-                style={{ marginLeft: 'auto' }}
-                onSubmit={e => { e.preventDefault(); setSearch(searchDraft.trim()) }}
-              >
-                <input
-                  type="search"
-                  className="channel-search-input"
-                  placeholder="Search this channel…"
-                  value={searchDraft}
-                  onChange={e => {
-                    setSearchDraft(e.target.value)
-                    // Clearing the box returns to the full list immediately.
-                    if (!e.target.value) setSearch('')
-                  }}
-                  aria-label="Search this channel"
-                />
-              </form>
-              <select
-                className="channel-sort"
-                value={sortMode}
-                onChange={e => setSortMode(e.target.value as SortMode)}
-                aria-label="Sort videos"
-                disabled={!!search}
-                title={search ? 'Sorting applies to the full list' : undefined}
-              >
-                {SORT_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-              <ToggleButton
-                active={hideWatched}
-                onClick={() => {
-                  const next = !hideWatched
-                  setHideWatched(next)
-                  saveSettings({ channelPageHideWatched: next }).catch(() => {})
-                }}
-              >
-                Unwatched only
-              </ToggleButton>
-            </>
-          )}
-        </div>
-      }
-    >
-      {tab === 'videos' && (() => {
-        if (searching) return <p className="channel-tab-status">Searching…</p>
-
-        // A search replaces the grid until the box is cleared.
-        const source = search ? searchResults : videos
-        if (source === null) return <p className="channel-tab-status">Loading videos…</p>
-        if (source.length === 0) {
-          return (
-            <p className="channel-tab-status">
-              {search ? `No videos matching "${search}".` : 'No videos found.'}
-            </p>
-          )
-        }
-
-        // Already ordered by YouTube; only watched-filtering remains.
-        const visibleVideos = shouldHide
-          ? source.filter(v => !watchedIds.has(v.videoId))
-          : source
-        // A channel can return hundreds of videos; render them in chunks so the
-        // grid stays responsive.
-        const shown = visibleVideos.slice(0, visibleCount)
-
+    <Loaded resource={info} lines={6}>
+      {channel => {
+        const tabs: TabItem<Tab>[] = [
+          { id: 'videos', label: 'Videos' },
+          ...(channel.hasPlaylists !== false ? [{ id: 'playlists' as const, label: 'Playlists' }] : []),
+          ...((featured.data?.length ?? 0) > 0 ? [{ id: 'channels' as const, label: 'Channels' }] : []),
+        ]
         return (
-          <>
-            <ul className="video-grid">
-              {shown.map(v => (
-                <VideoCard
-                  key={v.videoId}
-                  videoId={v.videoId}
-                  title={v.title}
-                  thumbnail={v.thumbnail}
-                  duration={v.duration}
-                  viewCountText={v.viewCountText}
-                  publishedText={v.publishedText}
-                  dimmed={watchedIds.has(v.videoId) && !shouldHide && watchedStyle === 'dim'}
-                />
-              ))}
-            </ul>
-            {visibleCount < visibleVideos.length && (
-              <div ref={sentinelRef} className="channel-sentinel" aria-hidden="true" />
+          <PageLayout
+            className="channel-page"
+            title={channel.name}
+            subtitle={channel.subscriberCount !== undefined ? `${compact_count(channel.subscriberCount)} subscribers` : undefined}
+            icon={channel.avatar ? <Avatar src={channel.avatar} name={channel.name} size="large" /> : undefined}
+            actions={
+              <button type="button" className={subscribed ? undefined : 'accent solid'} onClick={toggleSubscribe}>
+                {subscribed ? 'Subscribed' : 'Subscribe'}
+              </button>
+            }
+            banner={channel.banner}
+            extra={<>
+              {channel.description && <p className="channel-description">{channel.description}</p>}
+              <ChannelDetails info={channel} />
+            </>}
+            tabs={
+              <div className="channel-tabs">
+                <Tabs<Tab> label="Channel" items={tabs} active={tab} on_select={chooseTab} />
+                {tab === 'videos' && (
+                  <div className="toolbar channel-tools">
+                    <form role="search" onSubmit={event => { event.preventDefault(); setSearch(searchDraft.trim()) }}>
+                      <input
+                        type="search"
+                        className="filter"
+                        placeholder="Search this channel…"
+                        value={searchDraft}
+                        onChange={event => {
+                          setSearchDraft(event.target.value)
+                          // Clearing the box goes straight back to the whole list.
+                          if (!event.target.value) setSearch('')
+                        }}
+                        aria-label="Search this channel"
+                      />
+                    </form>
+                    {!search && <Select<SortMode> label="Sort videos" bare options={SORT_OPTIONS} value={sortMode} on_change={setSortMode} />}
+                    <label className="check">
+                      <Switch
+                        label="Unwatched only"
+                        checked={hide}
+                        on_change={next => {
+                          setHideWatched(next)
+                          saveSettings({ channelPageHideWatched: next }).catch(() => {})
+                        }}
+                      />
+                      Unwatched only
+                    </label>
+                  </div>
+                )}
+              </div>
+            }
+          >
+            {tab === 'videos' && (
+              <ChannelVideos
+                channelId={channelId}
+                options={{ sort_mode: sortMode, search, hide_watched: hide, watched_style: watched.data?.style ?? 'normal', watched_ids: watched.data?.ids ?? new Set() }}
+              />
             )}
-          </>
+
+            {tab === 'playlists' && (
+              <Loaded resource={playlists} lines={4}>
+                {found => !found?.length
+                  ? <Empty title="No playlists found." />
+                  : (
+                    <MediaGrid label="Playlists">
+                      {found.map(playlist => <ChannelPlaylistTile key={playlist.playlistId} playlist={playlist} channelName={channel.name} channelId={channel.channelId} />)}
+                    </MediaGrid>
+                  )}
+              </Loaded>
+            )}
+
+            {tab === 'channels' && (
+              <Loaded resource={featured} lines={4}>
+                {found => found.length === 0
+                  ? <Empty title="This channel doesn't feature any others." />
+                  : (
+                    <div className="grid channel-grid" role="list" aria-label="Featured channels">
+                      {found.map(other => <ChannelCard key={other.channelId} channelId={other.channelId} name={other.name} avatar={other.avatar} />)}
+                    </div>
+                  )}
+              </Loaded>
+            )}
+          </PageLayout>
         )
-      })()}
-
-      {tab === 'playlists' && (
-        loadingPlaylists
-          ? <p className="channel-tab-status">Loading playlists…</p>
-          : !playlists || playlists.length === 0
-            ? <p className="channel-tab-status">No playlists found.</p>
-            : (
-              <ul className="video-grid">
-                {playlists.map(p => (
-                  <ChannelPlaylistCard
-                    key={p.playlistId}
-                    playlist={p}
-                    channelName={info.name}
-                    channelId={info.channelId}
-                  />
-                ))}
-              </ul>
-            )
-      )}
-
-      {tab === 'channels' && (
-        loadingFeatured
-          ? <p className="channel-tab-status">Loading channels…</p>
-          : !featured || featured.length === 0
-            ? <p className="channel-tab-status">This channel doesn't feature any others.</p>
-            : (
-              <ul className="channel-grid">
-                {featured.map(c => (
-                  <ChannelCard
-                    key={c.channelId}
-                    channelId={c.channelId}
-                    name={c.name}
-                    avatar={c.avatar}
-                  />
-                ))}
-              </ul>
-            )
-      )}
-    </PageLayout>
+      }}
+    </Loaded>
   )
 }

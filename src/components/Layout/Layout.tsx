@@ -1,36 +1,98 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
-import { useTheme } from '../../contexts/ThemeContext'
-import { ScrollContainerContext } from '../../hooks/useScrollContainer'
+import { Shell } from '@x-tech-laboratories/x-libs/web/react/shell'
+import { Avatar } from '@x-tech-laboratories/x-libs/web/react/media'
+import { theme } from '../../theme'
 import { parseVideoId, parseChannelUrl } from '../../utils/youtube'
 import { getSubscriptions, subscribe } from '../../db/index'
 import { downloadAvatar } from '../../utils/avatar'
 import { getChannelInfoCached } from '../../services/metadata'
-import Button from '../Button'
 import type { Subscription } from '../../types'
 
-export default function Layout() {
-  const { theme, toggle } = useTheme()
+// ============================================================================
+// Sidebar
+// ============================================================================
+
+const sections = [
+  ['/subscriptions', 'Subscriptions'],
+  ['/channels', 'Channels'],
+  ['/playlists', 'Playlists'],
+  ['/history', 'History'],
+  ['/settings', 'Settings'],
+] as const
+
+function Sidebar({ subscriptions }: { subscriptions: Subscription[] }) {
+  return (
+    <>
+      {sections.map(([path, label]) => <NavLink key={path} to={path}>{label}</NavLink>)}
+      {subscriptions.length > 0 && (
+        <div className="sidebar-subs" role="group" aria-labelledby="sidebar-subs-label">
+          <p className="sidebar-subs-label" id="sidebar-subs-label">Channels</p>
+          {subscriptions.map(subscription => (
+            <Link key={subscription.channelId} to={`/channel/${subscription.channelId}`} className="sidebar-sub">
+              <Avatar src={subscription.avatar} name={subscription.channelName} size="small" />
+              <span className="sidebar-sub-name">{subscription.channelName}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
+// ============================================================================
+// Search
+// ============================================================================
+
+// A pasted or typed video or channel link opens it; anything else searches.
+function TopbarSearch() {
   const navigate = useNavigate()
-  const { pathname } = useLocation()
-  const contentRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
+
+  function submit(input: string) {
+    const trimmed = input.trim()
+    if (!trimmed) return
+    const videoId = parseVideoId(trimmed)
+    const channelId = videoId ? null : parseChannelUrl(trimmed)
+    if (videoId) navigate(`/watch/${videoId}`)
+    else if (channelId) navigate(`/channel/${encodeURIComponent(channelId)}`)
+    else navigate(`/search?q=${encodeURIComponent(trimmed)}`)
+    setQuery('')
+  }
+
+  return (
+    <form className="topbar-search" role="search" onSubmit={event => { event.preventDefault(); submit(query) }}>
+      <input
+        type="search"
+        className="filter"
+        placeholder="Search or paste a YouTube URL…"
+        value={query}
+        onChange={event => setQuery(event.target.value)}
+        onPaste={event => {
+          const pasted = event.clipboardData.getData('text')
+          if (parseVideoId(pasted) || parseChannelUrl(pasted)) {
+            event.preventDefault()
+            submit(pasted)
+          }
+        }}
+        aria-label="Search"
+      />
+      <button type="submit" className="accent solid">Search</button>
+    </form>
+  )
+}
+
+// ============================================================================
+// Layout
+// ============================================================================
+
+export default function Layout() {
+  const { pathname } = useLocation()
   const [subs, setSubs] = useState<Subscription[]>([])
 
   const loadSubs = useCallback(() => {
     getSubscriptions().then(setSubs).catch(() => {})
   }, [])
-
-  // `.content` scrolls, not the window, and React Router only resets window
-  // scroll — so without this the offset carries into the next page, which on a
-  // short page leaves it scrolled past its own content with no way back.
-  useEffect(() => {
-    const el = contentRef.current
-    if (!el) return
-    // jsdom has no Element.scrollTo, so fall back to assigning scrollTop.
-    if (typeof el.scrollTo === 'function') el.scrollTo(0, 0)
-    else el.scrollTop = 0
-  }, [pathname])
 
   useEffect(() => {
     loadSubs()
@@ -38,16 +100,12 @@ export default function Layout() {
     return () => window.removeEventListener('subscriptions-changed', loadSubs)
   }, [loadSubs])
 
-  // On startup, refresh avatars for all subscriptions.
-  // Runs sequentially with a delay between each request to avoid hammering the API.
-  // Only writes to DB when the fetched avatar differs from the stored one.
+  // Refreshes each subscription's avatar on startup, one at a time with a pause between.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       const list = await getSubscriptions()
-      if (!list.length) return
-      for (let i = 0; i < list.length; i++) {
-        if (cancelled) break
+      for (let i = 0; i < list.length && !cancelled; i++) {
         if (i > 0) await new Promise<void>(r => setTimeout(r, 800))
         if (cancelled) break
         const sub = list[i]
@@ -63,83 +121,9 @@ export default function Layout() {
     return () => { cancelled = true }
   }, [])
 
-  function submit(input: string) {
-    const trimmed = input.trim()
-    if (!trimmed) return
-    const videoId = parseVideoId(trimmed)
-    if (videoId) {
-      navigate(`/watch/${videoId}`)
-    } else {
-      const channelId = parseChannelUrl(trimmed)
-      if (channelId) {
-        navigate(`/channel/${encodeURIComponent(channelId)}`)
-      } else {
-        navigate(`/search?q=${encodeURIComponent(trimmed)}`)
-      }
-    }
-    setQuery('')
-  }
-
   return (
-    <div className="app-shell">
-      <nav className="sidebar">
-        <div className="sidebar-nav">
-          <NavLink to="/subscriptions">Subscriptions</NavLink>
-          <NavLink to="/channels">Channels</NavLink>
-          <NavLink to="/playlists">Playlists</NavLink>
-          <NavLink to="/history">History</NavLink>
-          <NavLink to="/settings">Settings</NavLink>
-        </div>
-
-        {subs.length > 0 && (
-          <>
-            <div className="sidebar-divider" />
-            <p className="sidebar-subs-label">Channels</p>
-            <div className="sidebar-subs">
-              {subs.map(sub => (
-                <Link key={sub.channelId} to={`/channel/${sub.channelId}`} className="sidebar-sub-item">
-                  {sub.avatar
-                    ? <img className="sidebar-sub-avatar" src={sub.avatar} alt="" loading="lazy" />
-                    : <div className="sidebar-sub-avatar sidebar-sub-avatar-initial">
-                        {sub.channelName.charAt(0).toUpperCase()}
-                      </div>
-                  }
-                  <span className="sidebar-sub-name">{sub.channelName}</span>
-                </Link>
-              ))}
-            </div>
-          </>
-        )}
-      </nav>
-
-      <header className="topbar">
-        <form className="topbar-search" onSubmit={e => { e.preventDefault(); submit(query) }}>
-          <input
-            className="topbar-input"
-            type="search"
-            placeholder="Search or paste a YouTube URL…"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onPaste={e => {
-              const pasted = e.clipboardData.getData('text')
-              if (parseVideoId(pasted) || parseChannelUrl(pasted)) {
-                e.preventDefault(); submit(pasted)
-              }
-            }}
-            aria-label="Search"
-          />
-          <Button variant="primary" type="submit" className="topbar-submit">Search</Button>
-        </form>
-        <Button variant="ghost" className="topbar-theme" onClick={toggle} aria-label="Toggle theme">
-          {theme === 'light' ? '🌙' : '☀️'}
-        </Button>
-      </header>
-
-      <div className="content" ref={contentRef}>
-        <ScrollContainerContext.Provider value={contentRef}>
-          <Outlet />
-        </ScrollContainerContext.Provider>
-      </div>
-    </div>
+    <Shell brand="X-Stream" theme={theme} sidebar={<Sidebar subscriptions={subs} />} tools={<TopbarSearch />} view_key={pathname}>
+      <Outlet />
+    </Shell>
   )
 }

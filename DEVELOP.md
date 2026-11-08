@@ -154,12 +154,13 @@ X-Stream/
 │
 ├── src/                       # React UI — the app itself (the window's page)
 │   ├── App.tsx                # React Router routes + Layout shell
-│   ├── components/            # Shared UI (Button, VideoCard, PageLayout, …)
+│   ├── theme.ts               # Light / dark / system theme kept in the settings
+│   ├── components/            # The app's own UI (Layout, VideoCard, ChannelCard, PageLayout, SabrPlayer, Comments)
 │   ├── pages/                 # Search, Watch, Channel, Subscriptions, Channels, History, Settings
 │   ├── plugins/               # Plugin system (youtubejs)
 │   ├── db/                    # PouchDB access layer (browser)
 │   ├── utils/desktop.ts       # Desktop detection, fetch shim, native calls
-│   ├── contexts/ hooks/ services/ types/
+│   ├── services/ types/
 │   └── …
 │
 ├── electron.vite.config.ts    # Main, preload and page builds
@@ -181,7 +182,8 @@ X-Stream/
 | Client UI | React 19 |
 | Adaptive playback | shaka-player 4 + googlevideo SABR (MSE) |
 | Desktop shell | Electron, built with electron-vite |
-| Shared code | `@x-tech-laboratories/x-libs` (bridge, window, fetch) |
+| Shared code | `@x-tech-laboratories/x-libs` (bridge, window, fetch, React widgets) |
+| Look | `@x-tech-laboratories/halon` stylesheets and tokens |
 | React bundler | Vite 8 |
 | React routing | React Router 7 |
 | React testing | Vitest + Testing Library |
@@ -239,7 +241,7 @@ cd server && npm install && npm run dev
 - **FreeTube import** (desktop only): imports subscriptions and watch history
 
 ### Settings
-- Light / dark theme
+- System / light / dark theme, also from the top bar's button
 - Startup page (Subscriptions / Channels / History)
 - Previously watched video style (Normal / Dim / Hide)
 - YouTube session cookie: stored in PouchDB, restored on startup
@@ -327,7 +329,7 @@ _To be defined._
 - [x] Electron via electron-vite, on X-Libs' bridge, window and fetch helpers
 - [x] FreeTube import in the main process (`src/main/freetube.ts`)
 - [x] Node 24, TypeScript 7, GPL-3.0-or-later, CI workflow
-- [ ] Pages on X-Libs' widgets and Halon
+- [x] Pages on X-Libs' widgets and Halon
 - [ ] Delete `src-tauri/` once the Electron app has been used for a while
 
 ### Phase 9 — Production Hardening

@@ -1,92 +1,74 @@
 import { useEffect, useState } from 'react'
+import { SearchBox, Switch } from '@x-tech-laboratories/x-libs/web/react/controls'
+import { Empty, Loaded, use_resource } from '@x-tech-laboratories/x-libs/web/react/states'
 import { getSubscriptions, getWatchedChannelIds, getSettings, saveSettings } from '../../db/index'
 import PageLayout from '../../components/PageLayout'
 import ChannelCard from '../../components/ChannelCard'
-import ToggleButton from '../../components/ToggleButton'
-import type { Subscription } from '../../types'
-import './Channels.css'
+
+async function load_channels() {
+  const [subscriptions, watched_channel_ids, settings] = await Promise.all([getSubscriptions(), getWatchedChannelIds(), getSettings()])
+  return { subscriptions, watched_channel_ids, hide_watched: settings.channelsHideWatched ?? false }
+}
 
 export default function Channels() {
-  const [subs, setSubs] = useState<Subscription[]>([])
-  const [watchedChannelIds, setWatchedChannelIds] = useState<Set<string>>(new Set())
+  const channels = use_resource(load_channels, [])
+  const [unsubscribed, setUnsubscribed] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState('')
-  const [hideWatched, setHideWatched] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [hideWatched, setHideWatched] = useState<boolean | null>(null)
 
   useEffect(() => {
-    Promise.all([getSubscriptions(), getWatchedChannelIds(), getSettings()])
-      .then(([s, watchedIds, settings]) => {
-        setSubs(s)
-        setWatchedChannelIds(watchedIds)
-        setHideWatched(settings.channelsHideWatched ?? false)
-      })
-      .finally(() => setLoading(false))
-
-    const refresh = () =>
-      getWatchedChannelIds().then(setWatchedChannelIds)
-        .catch(() => {})
+    const refresh = () => void channels.reload(true)
     window.addEventListener('history-changed', refresh)
     return () => window.removeEventListener('history-changed', refresh)
   }, [])
 
-  let visible = hideWatched
-    ? subs.filter(s => !watchedChannelIds.has(s.channelId))
-    : subs
+  const subs = (channels.data?.subscriptions ?? []).filter(sub => !unsubscribed.has(sub.channelId))
+  const hide = hideWatched ?? channels.data?.hide_watched ?? false
 
-  if (filter) {
-    visible = visible.filter(s => s.channelName.toLowerCase().includes(filter.toLowerCase()))
+  function changeHideWatched(next: boolean) {
+    setHideWatched(next)
+    saveSettings({ channelsHideWatched: next }).catch(() => {})
   }
 
-  if (loading) return <p className="subs-status">Loading…</p>
+  const wanted = filter.toLowerCase()
+  const visible = subs
+    .filter(sub => !hide || !channels.data?.watched_channel_ids.has(sub.channelId))
+    .filter(sub => !wanted || sub.channelName.toLowerCase().includes(wanted))
 
   return (
     <PageLayout
       title="Channels"
       actions={subs.length > 0 ? (
         <>
-          <ToggleButton
-            active={hideWatched}
-            onClick={() => { const next = !hideWatched; setHideWatched(next); saveSettings({ channelsHideWatched: next }).catch(() => {}) }}
-          >
+          <label className="check">
+            <Switch label="Unwatched only" checked={hide} on_change={changeHideWatched} />
             Unwatched only
-          </ToggleButton>
-          <input
-            className="subs-search"
-            type="search"
-            placeholder="Filter channels…"
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-            aria-label="Filter channels"
-          />
+          </label>
+          <SearchBox label="Filter channels…" value={filter} on_input={setFilter} />
         </>
       ) : undefined}
     >
-      {subs.length === 0 ? (
-        <p className="subs-empty">
-          You haven't subscribed to any channels yet. Subscribe from a video's watch page or channel page.
-        </p>
-      ) : visible.length === 0 ? (
-        <p className="subs-empty">
-          {hideWatched && !filter
-            ? 'All channels have been watched.'
-            : `No channels match "${filter}".`}
-        </p>
-      ) : (
-        <ul className="channel-grid">
-          {visible.map(sub => (
-            <ChannelCard
-              key={sub.channelId}
-              channelId={sub.channelId}
-              name={sub.channelName}
-              avatar={sub.avatar}
-              // Drop the card from this list as soon as it's unsubscribed.
-              onSubscriptionChange={subscribed => {
-                if (!subscribed) setSubs(prev => prev.filter(s => s.channelId !== sub.channelId))
-              }}
-            />
-          ))}
-        </ul>
-      )}
+      <Loaded resource={channels} lines={4}>
+        {() => subs.length === 0
+          ? <Empty title="You haven't subscribed to any channels yet." hint="Subscribe from a video's watch page or channel page." />
+          : visible.length === 0
+            ? <Empty title={hide && !filter ? 'All channels have been watched.' : `No channels match "${filter}".`} />
+            : (
+              <div className="grid channel-grid" role="list" aria-label="Subscribed channels">
+                {visible.map(sub => (
+                  <ChannelCard
+                    key={sub.channelId}
+                    channelId={sub.channelId}
+                    name={sub.channelName}
+                    avatar={sub.avatar}
+                    onSubscriptionChange={subscribed => {
+                      if (!subscribed) setUnsubscribed(before => new Set(before).add(sub.channelId))
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+      </Loaded>
     </PageLayout>
   )
 }

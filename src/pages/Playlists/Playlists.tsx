@@ -1,32 +1,27 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { MediaGrid, MediaTile } from '@x-tech-laboratories/x-libs/web/react/media'
+import { Empty, Loaded, use_resource } from '@x-tech-laboratories/x-libs/web/react/states'
 import { getAllPlaylists, createPlaylist } from '../../db/playlists'
-import { isPersonalPlaylist, type AnyPlaylist } from '../../types'
+import { isPersonalPlaylist } from '../../types'
 import PageLayout from '../../components/PageLayout'
-import Button from '../../components/Button'
-import './Playlists.css'
+
+function video_count(count: number): string {
+  return `${count} ${count === 1 ? 'video' : 'videos'}`
+}
 
 export default function Playlists() {
-  const [playlists, setPlaylists] = useState<AnyPlaylist[]>([])
-  const [loading, setLoading] = useState(true)
+  const playlists = use_resource(getAllPlaylists, [])
   const [creating, setCreating] = useState(false)
   const [newTitle, setNewTitle] = useState('')
 
-  const load = useCallback(() => {
-    getAllPlaylists()
-      .then(setPlaylists)
-      .catch(() => {})
-      .finally(() => setLoading(false))
+  useEffect(() => {
+    const refresh = () => void playlists.reload(true)
+    window.addEventListener('playlists-changed', refresh)
+    return () => window.removeEventListener('playlists-changed', refresh)
   }, [])
 
-  useEffect(() => {
-    load()
-    window.addEventListener('playlists-changed', load)
-    return () => window.removeEventListener('playlists-changed', load)
-  }, [load])
-
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
+  async function handleCreate(event: React.FormEvent) {
+    event.preventDefault()
     const title = newTitle.trim()
     if (!title) return
     await createPlaylist(title)
@@ -34,98 +29,64 @@ export default function Playlists() {
     setCreating(false)
   }
 
-  if (loading) return <p className="playlists-status">Loading…</p>
-
-  const personal = playlists.filter(isPersonalPlaylist)
-  const subscribed = playlists.filter(p => !isPersonalPlaylist(p))
-
   return (
     <PageLayout
       title="Playlists"
-      actions={
-        creating ? undefined : (
-          <Button variant="primary" onClick={() => setCreating(true)}>New playlist</Button>
-        )
-      }
+      actions={creating ? undefined : <button type="button" className="accent solid" onClick={() => setCreating(true)}>New playlist</button>}
     >
       {creating && (
-        <form className="playlist-create" onSubmit={handleCreate}>
-          <input
-            className="playlist-create-input"
-            value={newTitle}
-            onChange={e => setNewTitle(e.target.value)}
-            placeholder="Playlist name"
-            aria-label="Playlist name"
-            autoFocus
-          />
-          <Button variant="primary" type="submit" disabled={!newTitle.trim()}>Create</Button>
-          <Button type="button" onClick={() => { setCreating(false); setNewTitle('') }}>
-            Cancel
-          </Button>
+        <form className="toolbar" onSubmit={handleCreate}>
+          <input value={newTitle} onChange={event => setNewTitle(event.target.value)} placeholder="Playlist name" aria-label="Playlist name" autoFocus />
+          <button type="submit" className="accent solid" disabled={!newTitle.trim()}>Create</button>
+          <button type="button" onClick={() => { setCreating(false); setNewTitle('') }}>Cancel</button>
         </form>
       )}
 
-      {playlists.length === 0 && !creating ? (
-        <p className="playlists-empty">
-          No playlists yet. Create one above, or subscribe to a playlist from a channel page.
-        </p>
-      ) : (
-        <>
-          {personal.length > 0 && (
-            <section className="playlist-section">
-              <h3 className="playlist-section-title">Your playlists</h3>
-              <ul className="playlist-grid">
-                {personal.map(p => (
-                  <PlaylistTile
-                    key={p._id}
-                    to={`/playlist/${p.playlistId}`}
-                    title={p.title}
-                    thumbnail={p.videos[0]?.thumbnail}
-                    meta={`${p.videos.length} ${p.videos.length === 1 ? 'video' : 'videos'}`}
-                  />
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {subscribed.length > 0 && (
-            <section className="playlist-section">
-              <h3 className="playlist-section-title">Subscribed</h3>
-              <ul className="playlist-grid">
-                {subscribed.map(p => (
-                  <PlaylistTile
-                    key={p._id}
-                    to={`/playlist/yt/${p.playlistId}`}
-                    title={p.title}
-                    thumbnail={p.thumbnail || p.videos[0]?.thumbnail}
-                    meta={`${p.videos.length} videos · ${'author' in p ? p.author : ''}`}
-                  />
-                ))}
-              </ul>
-            </section>
-          )}
-        </>
-      )}
+      <Loaded resource={playlists} lines={4}>
+        {all => {
+          const personal = all.filter(isPersonalPlaylist)
+          const subscribed = all.filter(playlist => !isPersonalPlaylist(playlist))
+          if (all.length === 0 && !creating) {
+            return <Empty title="No playlists yet." hint="Create one above, or subscribe to a playlist from a channel page." />
+          }
+          return (
+            <>
+              {personal.length > 0 && (
+                <section className="stack tight" aria-label="Your playlists">
+                  <h2>Your playlists</h2>
+                  <MediaGrid label="Your playlists">
+                    {personal.map(playlist => (
+                      <MediaTile
+                        key={playlist._id}
+                        title={playlist.title}
+                        href={`#/playlist/${playlist.playlistId}`}
+                        image={playlist.videos[0]?.thumbnail}
+                        lines={[video_count(playlist.videos.length)]}
+                      />
+                    ))}
+                  </MediaGrid>
+                </section>
+              )}
+              {subscribed.length > 0 && (
+                <section className="stack tight" aria-label="Subscribed">
+                  <h2>Subscribed</h2>
+                  <MediaGrid label="Subscribed playlists">
+                    {subscribed.map(playlist => (
+                      <MediaTile
+                        key={playlist._id}
+                        title={playlist.title}
+                        href={`#/playlist/yt/${playlist.playlistId}`}
+                        image={playlist.thumbnail || playlist.videos[0]?.thumbnail}
+                        lines={[video_count(playlist.videos.length), 'author' in playlist ? playlist.author : '']}
+                      />
+                    ))}
+                  </MediaGrid>
+                </section>
+              )}
+            </>
+          )
+        }}
+      </Loaded>
     </PageLayout>
-  )
-}
-
-function PlaylistTile({ to, title, thumbnail, meta }: {
-  to: string
-  title: string
-  thumbnail?: string
-  meta: string
-}) {
-  return (
-    <li className="playlist-tile">
-      <Link to={to} className="playlist-tile-link">
-        {thumbnail
-          ? <img className="playlist-tile-thumb" src={thumbnail} alt="" loading="lazy" />
-          : <div className="playlist-tile-thumb playlist-tile-thumb-empty" aria-hidden="true" />
-        }
-        <p className="playlist-tile-title">{title}</p>
-        <p className="playlist-tile-meta">{meta}</p>
-      </Link>
-    </li>
   )
 }

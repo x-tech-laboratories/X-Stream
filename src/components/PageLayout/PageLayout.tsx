@@ -1,52 +1,35 @@
-import './PageLayout.css'
+import type { ReactNode } from 'react'
 
 interface PageLayoutProps {
   title?: string
-  subtitle?: string
-  icon?: React.ReactNode
-  /** Wide header image rendered above the title. */
+  subtitle?: ReactNode
+  icon?: ReactNode
+  // A wide header image above the title, such as a channel's banner.
   banner?: string
-  actions?: React.ReactNode
-  extra?: React.ReactNode
-  tabs?: React.ReactNode
-  children: React.ReactNode
+  actions?: ReactNode
+  extra?: ReactNode
+  tabs?: ReactNode
+  children: ReactNode
   className?: string
 }
 
-export default function PageLayout({
-  title,
-  subtitle,
-  icon,
-  banner,
-  actions,
-  extra,
-  tabs,
-  children,
-  className,
-}: PageLayoutProps) {
-  const hasHeader = title || icon || actions
-
+// A page with Halon's heading: an optional banner, the title with its icon and subtitle, and the page's buttons.
+export default function PageLayout({ title, subtitle, icon, banner, actions, extra, tabs, children, className }: PageLayoutProps) {
   return (
-    <div className={`page${className ? ` ${className}` : ''}`}>
-      {banner && (
-        <div className="page-banner">
-          <img src={banner} alt="" loading="lazy" />
-        </div>
-      )}
-      {hasHeader && (
-        <div className="page-header">
-          {(icon || title || subtitle) && (
+    <div className={className ? `page ${className}` : 'page'}>
+      {banner && <img className="page-banner" src={banner} alt="" loading="lazy" />}
+      {(title || icon || actions) && (
+        <div className="page-head">
+          <div className="page-title spread">
             <div className="page-identity">
-              {icon && <div className="page-icon">{icon}</div>}
-              {(title || subtitle) && (
-                <div className="page-titles">
-                  {title && <h1 className="page-title">{title}</h1>}
-                  {subtitle && <p className="page-subtitle">{subtitle}</p>}
-                </div>
-              )}
+              {icon}
+              <div>
+                {title && <h1>{title}</h1>}
+                {subtitle && <p className="muted">{subtitle}</p>}
+              </div>
             </div>
-          )}
-          {actions && <div className="page-actions">{actions}</div>}
+            {actions && <div className="head-actions">{actions}</div>}
+          </div>
         </div>
       )}
       {extra}

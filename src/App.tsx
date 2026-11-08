@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { ThemeProvider } from './contexts/ThemeContext'
 import Layout from './components/Layout'
 import Watch from './pages/Watch'
 import Search from './pages/Search'
@@ -28,34 +27,32 @@ export default function App() {
   }, [])
 
   return (
-    <ThemeProvider>
-      {/* The built page loads from a file, so the route lives in the hash. */}
-      <HashRouter>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route
-              index
-              element={
-                startupPage
-                  ? <Navigate to={`/${startupPage}`} replace />
-                  : null
-              }
-            />
-            <Route path="watch/:videoId" element={<Watch />} />
-            <Route path="search" element={<Search />} />
-            <Route path="channel/:channelId" element={<Channel />} />
-            <Route path="subscriptions" element={<Subscriptions />} />
-            <Route path="channels" element={<Channels />} />
-            <Route path="playlists" element={<Playlists />} />
-            {/* Two shapes: personal lists live locally, `yt/` ones are
-                snapshots of YouTube playlists. */}
-            <Route path="playlist/yt/:playlistId" element={<Playlist subscribed />} />
-            <Route path="playlist/:playlistId" element={<Playlist />} />
-            <Route path="history" element={<History />} />
-            <Route path="settings" element={<Settings />} />
-          </Route>
-        </Routes>
-      </HashRouter>
-    </ThemeProvider>
+    // The built page loads from a file, so the route lives in the hash.
+    <HashRouter>
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          <Route
+            index
+            element={
+              startupPage
+                ? <Navigate to={`/${startupPage}`} replace />
+                : null
+            }
+          />
+          <Route path="watch/:videoId" element={<Watch />} />
+          <Route path="search" element={<Search />} />
+          <Route path="channel/:channelId" element={<Channel />} />
+          <Route path="subscriptions" element={<Subscriptions />} />
+          <Route path="channels" element={<Channels />} />
+          <Route path="playlists" element={<Playlists />} />
+          {/* Two shapes: personal lists live locally, `yt/` ones are
+              snapshots of YouTube playlists. */}
+          <Route path="playlist/yt/:playlistId" element={<Playlist subscribed />} />
+          <Route path="playlist/:playlistId" element={<Playlist />} />
+          <Route path="history" element={<History />} />
+          <Route path="settings" element={<Settings />} />
+        </Route>
+      </Routes>
+    </HashRouter>
   )
 }

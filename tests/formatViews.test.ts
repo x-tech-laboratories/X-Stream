@@ -15,7 +15,7 @@ describe('formatViews', () => {
   it('abbreviates thousands', () => {
     expect(formatViews(1_000)).toBe('1K views')
     expect(formatViews(1_432)).toBe('1.4K views')
-    expect(formatViews(128_231)).toBe('128K views')
+    expect(formatViews(128_231)).toBe('128.2K views')
   })
 
   it('abbreviates millions and billions', () => {
@@ -24,8 +24,7 @@ describe('formatViews', () => {
     expect(formatViews(2_100_000_000)).toBe('2.1B views')
   })
 
-  // Above 100 a decimal adds noise, so those round to whole units.
-  it('drops the decimal once the value reaches three digits', () => {
+  it('leaves out a decimal of zero', () => {
     expect(formatViews(128_000)).toBe('128K views')
     expect(formatViews(999_000)).toBe('999K views')
   })
