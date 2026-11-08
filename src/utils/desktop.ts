@@ -1,15 +1,17 @@
 // The desktop app's calls into its main process: YouTube requests, opening links and the FreeTube import.
 
 import type { Client } from '@x-tech-laboratories/x-libs/electron/bridge'
-import { create_page_fetch } from '@x-tech-laboratories/x-libs/electron/fetch'
+import type { EventsClient } from '@x-tech-laboratories/x-libs/electron/events'
+import { create_page_fetch, create_page_stream_fetch } from '@x-tech-laboratories/x-libs/electron/fetch'
 
-import type { FreetubeData, XStreamApi } from '../shared/bridge.ts'
+import type { FreetubeData, XStreamApi, XStreamEvents } from '../shared/bridge.ts'
 
 export type { FreetubeData } from '../shared/bridge.ts'
 
 declare global {
   interface Window {
     x_stream?: Client<XStreamApi>
+    x_stream_events?: EventsClient<XStreamEvents>
   }
 }
 
@@ -25,6 +27,11 @@ export function is_desktop(): boolean {
 function desktop_api(): Client<XStreamApi> {
   if (!window.x_stream) throw new Error('This needs the X-Stream desktop app')
   return window.x_stream
+}
+
+function desktop_events(): EventsClient<XStreamEvents> {
+  if (!window.x_stream_events) throw new Error('This needs the X-Stream desktop app')
+  return window.x_stream_events
 }
 
 // ============================================================================
@@ -63,9 +70,16 @@ export function repairYouTubePayload(node: unknown): void {
 const YT_ORIGIN = 'https://www.youtube.com'
 
 // InnerTube refuses any origin but its own, so Origin and Referer are pinned to youtube.com.
-const page_fetch = create_page_fetch((request) => desktop_api().http_fetch(request), {
-  pinned_headers: { Origin: YT_ORIGIN, Referer: `${YT_ORIGIN}/` },
-})
+const pinned_headers = { Origin: YT_ORIGIN, Referer: `${YT_ORIGIN}/` }
+
+const page_fetch = create_page_fetch((request) => desktop_api().http_fetch(request), { pinned_headers })
+
+// Its Response body streams from the main process chunk by chunk, so the player decodes a segment while the rest is still arriving.
+export const desktop_stream_fetch = create_page_stream_fetch({
+  start: (request) => desktop_api().http_stream(request),
+  cancel: (stream_id) => desktop_api().http_stream_cancel(stream_id),
+  on_chunk: (handler) => desktop_events().on('stream_chunk', handler),
+}, { pinned_headers })
 
 // A fetch sent from the main process, with YouTube's JSON repaired on the way.
 export async function desktop_fetch(

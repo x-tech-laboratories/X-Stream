@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from 'react'
+import { describe_error } from '@x-tech-laboratories/x-libs/web/errors'
 import './SabrPlayer.css'
 
 interface SabrPlayerProps {
@@ -7,17 +8,6 @@ interface SabrPlayerProps {
   title: string
   /** Reports a getter for the playhead, for timed share links. */
   onReady?: (getCurrentTime: () => number) => void
-}
-
-// Shaka's errors are plain objects with a numeric code, so they are named by category and code.
-function describe_playback_error(error: unknown): string {
-  if (error instanceof Error) return error.message
-  const shaka_error = error as { code?: number; category?: number; message?: string; data?: unknown[] }
-  if (typeof shaka_error?.code === 'number') {
-    const detail = shaka_error.data?.find(item => typeof item === 'string')
-    return `Playback failed (shaka error ${shaka_error.category}.${shaka_error.code}${detail ? `: ${detail}` : ''}).`
-  }
-  return 'Playback failed.'
 }
 
 /**
@@ -133,7 +123,7 @@ export default function SabrPlayer({ videoId, title, onReady }: SabrPlayerProps)
         console.error('[SabrPlayer]', e)
         if (!cancelled) {
           setPhase(null)
-          setError(describe_playback_error(e))
+          setError(`Playback failed: ${describe_error(e)}`)
         }
       }
     })()

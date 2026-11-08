@@ -4,8 +4,8 @@
 // Ported from googlevideo's sabr-shaka-example. Two deliberate differences:
 //
 //  - The reference proxies requests through the `ytc-bridge` browser extension
-//    to escape CORS. We use `desktop_fetch`, sent from the main process, so the
-//    extension check is dropped entirely.
+//    to escape CORS. We use `desktop_stream_fetch`, sent from the main process
+//    with the body streamed back, so the extension check is dropped entirely.
 //  - Only the pieces X-Stream needs are kept; DRM handling is omitted since we
 //    never play protected content.
 
@@ -21,7 +21,7 @@ import {
   type SabrRequestMetadata,
   type UmpProcessingResult,
 } from 'googlevideo/sabr-streaming-adapter'
-import { desktop_fetch } from '../utils/desktop'
+import { desktop_stream_fetch } from '../utils/desktop'
 
 // True for the sabr: scheme and any googlevideo playback URL, live paths included.
 function isGoogleVideoURL(url: string): boolean {
@@ -37,17 +37,6 @@ function isGoogleVideoURL(url: string): boolean {
     return ['videoplayback', 'sabr', 'lsig', 'expire'].some(part => parts.includes(part))
   }
   return false
-}
-
-// The main process hands a whole response over at once, and the processor keeps only the last finished segment of a chunk, so chunks are fed in slices and the first finished segment wins.
-const UMP_SLICE_BYTES = 4096
-
-async function processInSlices(reader: SabrUmpProcessor, bytes: Uint8Array): Promise<UmpProcessingResult | undefined> {
-  for (let offset = 0; offset < bytes.byteLength; offset += UMP_SLICE_BYTES) {
-    const result = await reader.processChunk(bytes.subarray(offset, offset + UMP_SLICE_BYTES))
-    if (result) return result
-  }
-  return undefined
 }
 
 function headersToObject(headers: Headers): Record<string, string> {
@@ -236,14 +225,6 @@ export class ShakaPlayerAdapter implements SabrPlayerAdapter {
       metadata.isSABR && (metadata.streamInfo?.redirect || metadata.streamInfo?.sabrContextUpdate)
 
     if (!response.body) {
-      const buffer = await response.arrayBuffer()
-      progressUpdated(Date.now() - lastTime, buffer.byteLength, 0)
-
-      const result = await processInSlices(reader, new Uint8Array(buffer))
-      if (result) {
-        checkIntegrity(result)
-        return this.toShakaResponse(uri, request, requestType, response, result.data)
-      }
       if (emptyIsExpected()) {
         return this.toShakaResponse(uri, request, requestType, response, undefined)
       }
@@ -266,7 +247,7 @@ export class ShakaPlayerAdapter implements SabrPlayerAdapter {
         throw recoverableError('Empty response with no redirect information', metadata as any)
       }
 
-      const result = await processInSlices(reader, chunk.value)
+      const result: UmpProcessingResult | undefined = await reader.processChunk(chunk.value)
       const segmentInfo = reader.getSegmentInfo()
 
       if (segmentInfo) {
@@ -317,8 +298,8 @@ export class ShakaPlayerAdapter implements SabrPlayerAdapter {
         if (cached) return cached
       }
 
-      // Everything goes through the main process, where the page's CORS rules never apply.
-      const response = await desktop_fetch(uri, init)
+      // Everything goes through the main process, where the page's CORS rules never apply, with the body streamed back.
+      const response = await desktop_stream_fetch(uri, init)
       headersReceived(headersToObject(response.headers))
 
       const isUmp = response.headers.get('content-type') === 'application/vnd.yt-ump'
