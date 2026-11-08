@@ -10,8 +10,6 @@ X-Stream is a free, open source, privacy-respecting YouTube client. It allows us
 
 X-Stream ships as a **self-contained Electron desktop app** built with electron-vite. The React UI (`src/`) runs as the page in the window, talks to YouTube through youtubei.js, and stores its data in PouchDB. The main process (`src/main/`) provides the window, the requests the page's cross-origin rules would block, and the FreeTube import, over a bridge from X-Libs (`src/shared/bridge.ts`).
 
-A standalone Node.js server (`server/`) also exists and exposes the same capabilities over REST. It is **optional** — used by the browser build and for LAN/self-hosted setups. The desktop app does not require it.
-
 ### System diagram
 
 ```mermaid
@@ -32,23 +30,9 @@ graph TB
         IT -- "fetch shim over IPC" --> HTTP
     end
 
-    %% ── Optional server ────────────────────────────────────────────────────
-    subgraph SRV["Server — optional (server/) · port 7700"]
-        direction TB
-        FW[Fastify HTTP server]
-        SDB[(PouchDB / LevelDB\n~/.x-stream/db)]
-        SIT["Innertube\n(youtubei.js)"]
-        YD[yt-dlp binary]
-        FW --> SDB & SIT & YD
-    end
-
-    BR[Browser build]
     YT[(YouTube)]
 
     HTTP --> YT
-    SIT --> YT
-    YD --> YT
-    BR -- "fetch /api/*" --> FW
 ```
 
 ### Layer responsibilities
@@ -57,14 +41,12 @@ graph TB
 |-------|----------------|
 | **Page** (`src/`) | React UI, youtubei.js, PouchDB — the whole app |
 | **Main process** (`src/main/`, `src/preload/`) | Window, YouTube requests (CORS bypass), FreeTube import |
-| **Server** (`server/`) | Optional REST API for the browser build and self-hosting; Innertube + yt-dlp + LevelDB |
 
 ### Key design points
 
-- **youtube.js runs in the page.** The desktop app has no server dependency for YouTube data.
+- **youtube.js runs in the page.** The app has no server; YouTube data is fetched by the page.
 - **CORS is bypassed in the main process, not by header rewriting.** `desktop_fetch` (`src/utils/desktop.ts`) hands each request to the main process over the bridge, which sends it with Node's fetch to the hosts in `YOUTUBE_HOSTS` only. The single seam is `Innertube.create({ fetch })` in `src/plugins/youtubejs/innertube.ts`.
 - **`Origin` must be pinned, not stripped.** InnerTube answers `403` to any cross-origin `Origin` value (an empty one included), so `desktop_fetch` sets `Origin`/`Referer` to `https://www.youtube.com`. See `tests/desktop_fetch.test.ts`.
-- **yt-dlp is server-side only.** The desktop client uses youtubei.js exclusively; the binary is still spawned by the Fastify process for `/api/video/:id?backend=ytdlp`.
 - **Adaptive streams go through the same fetch.** `googlevideo.com` returns no `Access-Control-Allow-Origin`, so the SABR adapter (`src/services/shakaAdapter.ts`) sends its segment requests through `desktop_fetch` too.
 - **The IOS Innertube client is used for playback.** It is the only one returning stream URLs that need no signature deciphering — WEB/ANDROID/TV all require running YouTube's player script in a JS evaluator we don't ship.
 - **Cached data is only refetched when stale.** Each channel cache carries a
@@ -81,46 +63,11 @@ graph TB
 - **Native capabilities live in the main process.** The FreeTube importer needs filesystem access the page lacks, so it is a bridge method in `src/main/freetube.ts`. Pages feature-detect via `is_desktop()` and degrade gracefully without it.
 - **The built page loads from a file**, so routing uses a hash router and the CSP sits in `index.html`.
 
-### REST API contract
-
-```
-# Video & search
-GET  /api/video/:id?backend=youtubejs|ytdlp
-GET  /api/search?q=&limit=&backend=
-
-# Channel
-GET  /api/channel/:id?backend=
-GET  /api/channel/:id/videos?limit=&backend=
-GET  /api/channel/:id/playlists?backend=
-GET  /api/channel-cache/:channelId          (cached video list)
-PUT  /api/channel-cache/:channelId          body: CachedVideo[]
-
-# Storage
-GET    /api/settings
-PATCH  /api/settings                        body: Partial<UserSettings>
-GET    /api/subscriptions
-POST   /api/subscriptions                   body: { channelId, name, thumbnail? }
-DELETE /api/subscriptions/:channelId
-GET    /api/subscriptions/:channelId/status
-GET    /api/history
-POST   /api/history                         body: { videoId, title, channelId, channelName, thumbnail?, duration? }
-DELETE /api/history/:videoId
-DELETE /api/history                         (clear all)
-
-# Utilities
-GET    /api/proxy?url=                      streams image bytes (YouTube hosts only)
-POST   /api/sync                            body: { remoteUrl } — PouchDB replication
-GET    /api/health                          → { ok: true, version }
-```
-
----
-
 ## Platform Targets
 
 | Platform | Stack |
 |----------|-------|
 | Desktop | Electron + React (`src/`) → Linux / macOS / Windows |
-| Web | React (`src/`) in the browser → any modern browser (requires the server) |
 | Mobile | React Native — planned |
 
 ---
@@ -129,22 +76,6 @@ GET    /api/health                          → { ok: true, version }
 
 ```
 X-Stream/
-├── server/                    # Standalone Node.js REST API server
-│   └── src/
-│       ├── index.ts           # Fastify instance, CORS, optional API key, startup
-│       ├── db.ts              # PouchDB CRUD (settings, subscriptions, history, cache)
-│       ├── innertube.ts       # Innertube singleton (youtube.js)
-│       ├── ytdlp.ts           # yt-dlp spawn helpers
-│       ├── types.ts           # Shared response types
-│       └── routes/
-│           ├── video.ts       # /api/search, /api/video/:id
-│           ├── channel.ts     # /api/channel/* + channel cache
-│           ├── subscriptions.ts
-│           ├── history.ts
-│           ├── settings.ts
-│           ├── proxy.ts       # /api/proxy?url= — image proxy
-│           └── sync.ts        # /api/sync — PouchDB replication
-│
 ├── src/main/                  # Electron main process
 │   ├── index.ts               # Window (X-Libs create_window) and bridge handlers
 │   └── freetube.ts            # FreeTube import (filesystem access)
@@ -175,10 +106,7 @@ X-Stream/
 
 | Concern | Technology |
 |---------|-----------|
-| Server framework | Fastify 5 |
-| Server DB | PouchDB 9 (LevelDB via `pouchdb`) |
-| YouTube data | youtubei.js 17 |
-| Video download | yt-dlp (server only) |
+| YouTube data | youtubei.js 18 |
 | Client UI | React 19 |
 | Adaptive playback | shaka-player 4 + googlevideo SABR (MSE) |
 | Desktop shell | Electron, built with electron-vite |
@@ -195,15 +123,11 @@ X-Stream/
 ## Running Locally
 
 ```bash
-# Enter Nix dev shell (provides Node 24, Electron, yt-dlp)
+# Enter Nix dev shell (provides Node 24, Electron)
 nix-shell
 
-# Run the desktop app — this is the whole app, no server needed
+# Run the desktop app
 npm install && npm run dev
-
-# Optional: the REST API server
-cd server && npm install && npm run dev
-# → http://localhost:7700
 ```
 
 ---
@@ -268,7 +192,7 @@ _To be defined._
 ### Phase 2 — Plugin System ✓
 - [x] `VideoPlugin` interface
 - [x] `PluginManager` with registration, lookup, and auto-select
-- [x] yt-dlp plugin (later removed from the client; still available server-side)
+- [x] yt-dlp plugin (later removed)
 - [x] VideoPlayer component with quality selector
 - [x] Watch page wired to active plugin
 
@@ -301,7 +225,7 @@ _To be defined._
 - [x] `src/utils/format.ts` — shared `formatDuration` + `timeAgo`
 - [x] `src/services/videoCache.ts` — stale-while-revalidate cache
 
-### Phase 7 — REST API Server ✓
+### Phase 7 — REST API Server (removed)
 - [x] Fastify server in `server/` — video, channel, subscriptions, history, settings, proxy, sync routes
 - [x] PouchDB (LevelDB) persistence on server
 - [x] Innertube singleton on server (no CORS, no workarounds)
@@ -336,7 +260,6 @@ _To be defined._
 - [ ] Package installers (AppImage / deb / dmg / msi) for the Electron app
 - [ ] Mobile app in React Native
 - [ ] Verify 1080p+ playback end to end in the app window
-- [ ] Server: systemd service unit file
 - [ ] Privacy mode (no history stored)
 - [ ] Default quality preference
 - [ ] P2P sync between devices via PouchDB replication

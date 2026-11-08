@@ -2,9 +2,8 @@
 
 pkgs.mkShell {
   packages = with pkgs; [
-    nodejs_24   # The app, its build and tests, and the optional server
+    nodejs_24   # The app, its build and tests
     electron    # Runs the desktop app; the npm one cannot start on NixOS
-    yt-dlp      # Used by the optional server only
     git
   ];
 
@@ -14,7 +13,6 @@ pkgs.mkShell {
     echo "  electron  ${pkgs.electron.version}"
     echo ""
     echo "  Desktop:  npm run dev"
-    echo "  Server:   cd server && npm run dev   (port 7700)"
 
     # npm skips Electron's download and electron-vite starts the nixpkgs one instead.
     export ELECTRON_SKIP_BINARY_DOWNLOAD=1
@@ -22,7 +20,5 @@ pkgs.mkShell {
 
     # VSCode's terminal sets this, which makes Electron start as plain Node.
     unset ELECTRON_RUN_AS_NODE
-
-    export XSTREAM_SERVER_PATH="$(pwd)/server"
   '';
 }
