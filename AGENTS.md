@@ -54,7 +54,7 @@ Adding a route: create `server/src/routes/<name>.ts` exporting a default Fastify
 
 - `src/` is the app; it runs as the page in the Electron window, built by electron-vite (`electron.vite.config.ts`)
 - **Routing**: React Router 7 with a hash router, since the built page loads from a file — routes in `src/App.tsx`; `Layout` wraps the tab pages, `/watch/:videoId` and `/channel/:channelId` render inside it
-- **Widgets and look**: pages are drawn with X-Libs' React widgets (`Shell`, `MediaTile`, `MenuButton`, `Segmented`, `Switch`, `use_resource`, `confirm_dialog`, …) on Halon's stylesheets, imported once in `src/main.tsx`; the app's own CSS holds only layout and player rules on Halon's tokens, never raw colours, and `src/index.css` styles the X-Libs widgets Halon has no rules for yet
+- **Widgets and look**: pages are drawn with X-Libs' React widgets (`Shell`, `MediaTile`, `MenuButton`, `Segmented`, `Switch`, `use_resource`, `confirm_dialog`, …) on Halon's stylesheets, imported once in `src/main.tsx`; the app's own CSS holds only layout and player rules on Halon's tokens, never raw colours
 - **Theme**: `src/theme.ts` is X-Libs' `theme_choice`, kept in the settings and mirrored in this browser
 - **Pages**: `src/pages/<Name>/` (Search, Watch, Channel, Subscriptions, Channels, History, Settings). There is no Home page — `/` redirects to the user's configured startup page.
 - **Data layer**: PouchDB (browser) via `src/db/`; the plugin system (`src/plugins/`, youtubejs only) fetches YouTube data
