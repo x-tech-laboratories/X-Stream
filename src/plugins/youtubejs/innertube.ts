@@ -92,21 +92,13 @@ export async function getSabrStreamingData(videoId: string, reloadContext?: unkn
   }
 }
 
-/**
- * Client identification SABR includes with each request.
- *
- * This must describe the same client that fetched the streaming data
- * ({@link STREAM_CLIENT}), not the session default — the server cross-checks
- * them and rejects a mismatch.
- */
+// Client identification SABR includes with each request: the session's own client, as in googlevideo's shaka example.
 export async function getSabrClientInfo() {
   const yt = await getClient()
   const { Constants } = await import('youtubei.js')
   const client = yt.session.context.client
-  // CLIENT_NAME_IDS keys the iOS client as "iOS", not "IOS", so looking it up
-  // by STREAM_CLIENT directly yields undefined and sends NaN as the id.
   const ids = Constants.CLIENT_NAME_IDS as Record<string, string>
-  const clientNameId = ids[STREAM_CLIENT] ?? ids.iOS ?? ids.WEB
+  const clientNameId = ids[client.clientName] ?? ids.WEB
 
   return {
     osName: client.osName,

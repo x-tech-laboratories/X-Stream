@@ -6,8 +6,10 @@
 //
 // Ported from googlevideo's sabr-shaka-example; requests go through desktop_fetch instead of its browser extension.
 
-import { BG, buildURL, GOOG_API_KEY } from 'bgutils-js'
-import type { DescrambledChallenge, WebPoSignalOutput } from 'bgutils-js'
+import { BotGuardClient, parseChallengeData } from 'bgutils-js/botguard'
+import type { IBotguardClientSideBgChallenge, WebPoSignalOutput } from 'bgutils-js/shared-types'
+import { buildURL, GOOG_API_KEY } from 'bgutils-js/utils'
+import { createColdStartToken, WebPoMinter } from 'bgutils-js/webpo'
 import { desktop_fetch } from '../utils/desktop'
 
 /** Identifies this client to the BotGuard service. From the reference impl. */
@@ -20,17 +22,17 @@ const JSON_PROTOBUF_HEADERS = {
 }
 
 export class BotguardService {
-  private client?: BG.BotGuardClient
-  private minter?: BG.WebPoMinter
-  private challenge?: DescrambledChallenge
-  private pending: Promise<BG.BotGuardClient | undefined> | null = null
+  private client?: BotGuardClient
+  private minter?: WebPoMinter
+  private challenge?: IBotguardClientSideBgChallenge
+  private pending: Promise<BotGuardClient | undefined> | null = null
 
   /** True once a real (non cold-start) token can be minted. */
   isInitialized(): boolean {
     return !!this.client && !!this.minter
   }
 
-  async init(): Promise<BG.BotGuardClient | undefined> {
+  async init(): Promise<BotGuardClient | undefined> {
     if (this.pending) return this.pending
     this.pending = this.setup()
     try {
@@ -41,38 +43,39 @@ export class BotguardService {
     }
   }
 
-  async reinit(): Promise<BG.BotGuardClient | undefined> {
+  async reinit(): Promise<BotGuardClient | undefined> {
     if (this.pending) return this.pending
     this.dispose()
     return this.init()
   }
 
-  private async setup(): Promise<BG.BotGuardClient | undefined> {
+  private async setup(): Promise<BotGuardClient | undefined> {
     const response = await desktop_fetch(buildURL('Create', true), {
       method: 'POST',
       headers: JSON_PROTOBUF_HEADERS,
       body: JSON.stringify([WAA_REQUEST_KEY]),
     })
 
-    this.challenge = BG.Challenge.parseChallengeData(await response.json())
+    this.challenge = parseChallengeData(await response.json())
     if (!this.challenge) return undefined
 
     const interpreter =
-      this.challenge.interpreterJavascript.privateDoNotAccessOrElseSafeScriptWrappedValue
-    if (!interpreter) return undefined
+      this.challenge.interpreterJavascript?.privateDoNotAccessOrElseSafeScriptWrappedValue
+    const interpreterHash = this.challenge.interpreterHash
+    if (!interpreter || !interpreterHash) return undefined
 
     // The interpreter has to be evaluated in the page for BotGuard to find its
     // global; this is why the CSP allows 'unsafe-eval'.
-    if (!document.getElementById(this.challenge.interpreterHash)) {
+    if (!document.getElementById(interpreterHash)) {
       const script = document.createElement('script')
       script.type = 'text/javascript'
-      script.id = this.challenge.interpreterHash
+      script.id = interpreterHash
       script.textContent = interpreter
       document.head.appendChild(script)
     }
 
-    this.client = await BG.BotGuardClient.create({
-      globalObj: globalThis,
+    this.client = await BotGuardClient.create({
+      globalObject: globalThis,
       globalName: this.challenge.globalName,
       program: this.challenge.program,
     })
@@ -89,7 +92,7 @@ export class BotguardService {
     const integrityToken = (await tokenResponse.json())[0] as string | undefined
     if (!integrityToken) return undefined
 
-    this.minter = await BG.WebPoMinter.create({ integrityToken }, webPoSignalOutput)
+    this.minter = await WebPoMinter.create({ integrityToken }, webPoSignalOutput)
     return this.client
   }
 
@@ -98,7 +101,7 @@ export class BotguardService {
    * minted one, but lets the first segments start loading immediately.
    */
   mintColdStartToken(contentBinding: string): string {
-    return BG.PoToken.generateColdStartToken(contentBinding)
+    return createColdStartToken(contentBinding)
   }
 
   async mint(contentBinding: string): Promise<string | undefined> {
@@ -108,7 +111,7 @@ export class BotguardService {
   }
 
   dispose(): void {
-    if (this.client && this.challenge) {
+    if (this.client && this.challenge?.interpreterHash) {
       this.client.shutdown()
       document.getElementById(this.challenge.interpreterHash)?.remove()
     }
