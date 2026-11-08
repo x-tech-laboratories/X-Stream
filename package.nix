@@ -11,7 +11,7 @@ buildNpmPackage rec {
   env.ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
 
   # After a lock file change, refresh with `nix run nixpkgs#prefetch-npm-deps -- package-lock.json`.
-  npmDepsHash = "sha256-Tzlk0gDw+nehiNhLNEqObceG+U6esyb2/8x/K9laYZA=";
+  npmDepsHash = "sha256-A7w36JNlJkk4z17MXgzwis/bgIs+GypxK6Ovjq1TP0Y=";
 
   # electron-vite writes the main process, preload and page into out/
   installPhase = ''
