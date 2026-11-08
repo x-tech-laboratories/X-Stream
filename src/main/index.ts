@@ -3,10 +3,10 @@
 import { app, BrowserWindow, ipcMain, nativeTheme, screen, shell } from 'electron'
 import { join } from 'node:path'
 
-import { create_main_fetch } from '@x-tech-laboratories/x-libs/electron/fetch'
+import { create_main_fetch, create_main_stream_fetch } from '@x-tech-laboratories/x-libs/electron/fetch'
 import { create_window } from '@x-tech-laboratories/x-libs/electron/window'
 
-import { x_stream_bridge, YOUTUBE_HOSTS } from '../shared/bridge.ts'
+import { x_stream_bridge, x_stream_events, YOUTUBE_HOSTS } from '../shared/bridge.ts'
 import { freetube_read_data, freetube_scan } from './freetube.ts'
 
 // ============================================================================
@@ -33,8 +33,15 @@ function open_main_window(): void {
 // Start
 // ============================================================================
 
+// A streamed body reaches the page chunk by chunk as events, so the player reads segments as they land.
+const stream_fetch = create_main_stream_fetch({ hosts: YOUTUBE_HOSTS }, (chunk) => {
+  x_stream_events.emit(BrowserWindow.getAllWindows(), 'stream_chunk', chunk)
+})
+
 x_stream_bridge.handle(ipcMain, {
   http_fetch: create_main_fetch({ hosts: YOUTUBE_HOSTS }),
+  http_stream: stream_fetch.start,
+  http_stream_cancel: stream_fetch.cancel,
   freetube_scan: () => freetube_scan(),
   freetube_read_data: (directory) => freetube_read_data(directory),
 })

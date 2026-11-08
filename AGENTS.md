@@ -48,6 +48,9 @@ npm run dev
 
 youtubei.js runs *in the page*, so YouTube requests would normally hit CORS. They are
 sent from the main process instead (X-Libs `electron/fetch`) via `Innertube.create({ fetch })`.
+`desktop_fetch` brings the whole body back in one bridge reply; `desktop_stream_fetch` opens
+`http_stream` and gets the body as `stream_chunk` events (`x_stream_events`), so a
+`ReadableStream` body reaches the player as it arrives.
 Two non-obvious rules, both enforced by `tests/desktop_fetch.test.ts`:
 
 - **Pin `Origin`/`Referer` to `https://www.youtube.com`.** InnerTube returns `403` for any
@@ -66,6 +69,9 @@ Three constraints, each of which was a real regression:
 - **Never refetch a fresh cache.** Channel caches carry `fetchedAt`; use
   `getStaleChannelIds()` before refreshing. Refreshing everything on mount made the
   subscriptions feed take ~8s to settle.
+- **The page sends no `Referer`.** `index.html` sets `<meta name="referrer" content="no-referrer">`:
+  Google's image hosts (`yt3.googleusercontent.com`, `yt3.ggpht.com`) answer `429` to a foreign
+  Referer, which broke avatars and banners in dev.
 - **Never store images as base64.** Thumbnails are URLs rendered by
   `<img loading="lazy">`. Inlining them cost hundreds of requests per refresh and
   produced a ~75 MB PouchDB that slowed every read. Channel *avatars* are the one
@@ -82,8 +88,9 @@ googlevideo's adapter:
 
 - **Use the `IOS` Innertube client.** It's the only one whose stream URLs need no
   signature deciphering; WEB/ANDROID/TV require a JS evaluator we don't ship.
-- Segment requests go through `desktop_fetch` (`src/services/shakaAdapter.ts`), since
-  `googlevideo.com` sends no `Access-Control-Allow-Origin`.
+- Segment requests go through `desktop_stream_fetch` (`src/services/shakaAdapter.ts`), since
+  `googlevideo.com` sends no `Access-Control-Allow-Origin`; the UMP decoder reads the
+  streamed body chunk by chunk, the way it would a browser fetch.
 - BotGuard (`src/services/botguard.ts`) mints the proof-of-origin token by running
   YouTube's script in the page, which is why the CSP in `index.html` allows `'unsafe-eval'`.
 

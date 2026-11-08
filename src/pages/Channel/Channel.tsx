@@ -229,10 +229,9 @@ function ChannelView({ channelId }: { channelId: string }) {
   }, [channelId])
   // Loaded the first time their tab opens, then kept.
   const playlists = use_resource(async () => {
-    if (!playlistsOpened) return null
     const plugin = pluginManager.getActive()
     return plugin.getChannelPlaylists ? plugin.getChannelPlaylists(channelId).catch(() => []) : []
-  }, [channelId, playlistsOpened])
+  }, [channelId], { enabled: playlistsOpened })
   // Loaded straight away, since the only way to know whether to show its tab is to look.
   const featured = use_resource(async () => {
     const plugin = pluginManager.getActive()
@@ -313,7 +312,7 @@ function ChannelView({ channelId }: { channelId: string }) {
 
             {tab === 'playlists' && (
               <Loaded resource={playlists} lines={4}>
-                {found => !found?.length
+                {found => found.length === 0
                   ? <Empty title="No playlists found." />
                   : (
                     <MediaGrid label="Playlists">

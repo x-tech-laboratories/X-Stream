@@ -47,7 +47,7 @@ graph TB
 - **youtube.js runs in the page.** The app has no server; YouTube data is fetched by the page.
 - **CORS is bypassed in the main process, not by header rewriting.** `desktop_fetch` (`src/utils/desktop.ts`) hands each request to the main process over the bridge, which sends it with Node's fetch to the hosts in `YOUTUBE_HOSTS` only. The single seam is `Innertube.create({ fetch })` in `src/plugins/youtubejs/innertube.ts`.
 - **`Origin` must be pinned, not stripped.** InnerTube answers `403` to any cross-origin `Origin` value (an empty one included), so `desktop_fetch` sets `Origin`/`Referer` to `https://www.youtube.com`. See `tests/desktop_fetch.test.ts`.
-- **Adaptive streams go through the same fetch.** `googlevideo.com` returns no `Access-Control-Allow-Origin`, so the SABR adapter (`src/services/shakaAdapter.ts`) sends its segment requests through `desktop_fetch` too.
+- **Adaptive streams go through the main process too, streamed.** `googlevideo.com` returns no `Access-Control-Allow-Origin`, so the SABR adapter (`src/services/shakaAdapter.ts`) sends its segment requests through `desktop_stream_fetch`: the main process answers the head over the bridge (`http_stream`) and pushes the body as `stream_chunk` events, which the page turns into the Response's `ReadableStream`.
 - **The IOS Innertube client is used for playback.** It is the only one returning stream URLs that need no signature deciphering — WEB/ANDROID/TV all require running YouTube's player script in a JS evaluator we don't ship.
 - **Cached data is only refetched when stale.** Each channel cache carries a
   `fetchedAt`; `getStaleChannelIds()` filters to expired entries (30 min TTL) so

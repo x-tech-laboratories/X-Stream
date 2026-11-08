@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Avatar } from '@x-tech-laboratories/x-libs/web/react/media'
+import { cx } from '@x-tech-laboratories/x-libs/web/dom'
 import { pluginManager } from '../../plugins/manager'
 import type { Comment as CommentType, CommentThread } from '../../plugins/types'
 import './Comments.css'
@@ -114,7 +115,7 @@ function CommentHead({ comment }: { comment: CommentType }) {
   return (
     <p className="comment-head">
       {comment.isPinned && <span className="comment-pin" title="Pinned">📌</span>}
-      <span className={`comment-author${comment.authorIsOwner ? ' comment-author-owner' : ''}`}>
+      <span className={cx('comment-author', comment.authorIsOwner && 'comment-author-owner')}>
         {comment.author}
       </span>
       <span className="comment-date">{comment.publishedText}</span>
