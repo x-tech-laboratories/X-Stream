@@ -1,5 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import '@x-tech-laboratories/halon/halon-tokens.css'
+import '@x-tech-laboratories/halon/halon.css'
 import 'shaka-player/dist/controls.css'
 import './index.css'
 import App from './App.tsx'
@@ -7,8 +9,11 @@ import { pluginManager } from './plugins/manager'
 import { YoutubeJsPlugin } from './plugins/youtubejs/index'
 import { getSettings, stripInlinedThumbnails } from './db/index'
 import { startRefresher } from './services/refresher'
+import { load_saved_theme } from './theme'
 
 pluginManager.register(new YoutubeJsPlugin())
+
+void load_saved_theme()
 
 // Reclaim space from the old base64-thumbnail scheme. Runs in the background:
 // nothing on screen depends on it, and it no-ops once the data is clean.

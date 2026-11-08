@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Avatar } from '@x-tech-laboratories/x-libs/web/react/media'
 import { pluginManager } from '../../plugins/manager'
 import type { Comment as CommentType, CommentThread } from '../../plugins/types'
 import './Comments.css'
@@ -69,14 +70,14 @@ function CommentRow({ videoId, comment }: { videoId: string; comment: CommentTyp
 
   return (
     <li className="comment">
-      <CommentAvatar src={comment.authorAvatar} />
+      <Avatar src={comment.authorAvatar} name={comment.author} />
       <div className="comment-body">
         <CommentHead comment={comment} />
         <p className="comment-text">{comment.text}</p>
         <p className="comment-meta">
           {comment.likeCount && <span>👍 {comment.likeCount}</span>}
           {comment.hasReplies && comment.replyCount && (
-            <button className="comment-replies-toggle" onClick={toggleReplies}>
+            <button type="button" className="link" onClick={toggleReplies}>
               {open ? 'Hide' : 'Show'} {comment.replyCount} replies
             </button>
           )}
@@ -90,7 +91,7 @@ function CommentRow({ videoId, comment }: { videoId: string; comment: CommentTyp
                 <ul className="comment-replies">
                   {replies.map(r => (
                     <li key={r.commentId} className="comment comment-reply">
-                      <CommentAvatar src={r.authorAvatar} />
+                      <Avatar src={r.authorAvatar} name={r.author} size="small" />
                       <div className="comment-body">
                         <CommentHead comment={r} />
                         <p className="comment-text">{r.text}</p>
@@ -107,12 +108,6 @@ function CommentRow({ videoId, comment }: { videoId: string; comment: CommentTyp
       </div>
     </li>
   )
-}
-
-function CommentAvatar({ src }: { src: string }) {
-  return src
-    ? <img className="comment-avatar" src={src} alt="" loading="lazy" />
-    : <div className="comment-avatar comment-avatar-blank" aria-hidden="true" />
 }
 
 function CommentHead({ comment }: { comment: CommentType }) {

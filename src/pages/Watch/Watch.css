@@ -1,162 +1,57 @@
-/* Fills the content column rather than sitting at a fixed 960px, but stays
-   readable on very wide displays. */
+/* Fills the content column but stays readable on very wide displays. */
 .watch-page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  width: 100%;
+  gap: var(--space-6);
   max-width: 1600px;
   margin: 0 auto;
 }
 
 .watch-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  gap: var(--space-4);
 }
 
-.watch-title {
-  font-size: 1.2rem;
-  font-weight: 600;
-}
+.watch-meta h1 { font-size: var(--text-h2); }
 
 .watch-channel-row {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-top: 4px;
+  gap: var(--space-5);
   flex-wrap: wrap;
 }
 
-.watch-channel-link {
+.watch-channel {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-4);
+  color: var(--text-heading);
+  font-weight: 500;
   text-decoration: none;
 }
 
-.watch-channel-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  object-fit: cover;
-  background: var(--surface-hover);
-  flex-shrink: 0;
-}
+.watch-channel:hover span { color: var(--accent); }
 
-.watch-channel-avatar-initial {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--accent-bg);
-  color: var(--accent);
-  font-weight: 700;
-}
-
-/* Pushed to the far end of the row, opposite the channel identity. */
+/* Pushed to the far end of the row, opposite the channel. */
 .watch-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-5);
   margin-left: auto;
 }
 
-.watch-stat {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.watch-stats {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-
-.watch-channel {
-  color: var(--text);
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-.watch-channel-link:hover .watch-channel {
-  color: var(--accent);
-}
-
-/* Button component provides border-radius, cursor, transition */
-.watch-sub-btn {
-  font-weight: 600;
-  background: var(--text);
-  color: var(--bg);
-  border-color: transparent;
-}
-
-.watch-sub-btn:hover { opacity: 0.8; }
-
-.watch-sub-btn.subscribed {
-  background: var(--surface-hover);
-  color: var(--text-muted);
-  border-color: var(--border);
-  opacity: 1;
-}
-
-.watch-sub-btn.subscribed:hover { color: var(--text); opacity: 1; }
-
-.watch-views {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-
 .watch-description {
-  margin-top: 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 14px;
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius-default);
 }
 
 .watch-description summary {
   cursor: pointer;
-  font-size: 0.9rem;
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 .watch-description p {
-  margin-top: 8px;
-  font-size: 0.875rem;
+  margin: var(--space-4) 0 0;
   white-space: pre-wrap;
 }
-
-.watch-status {
-  padding: 24px 0;
-  color: var(--text-muted);
-}
-
-.watch-error {
-  color: var(--accent);
-}
-
-/* VideoMenu positions itself absolutely against the nearest positioned
-   ancestor, so give it one sized to the trigger. */
-.watch-menu {
-  position: relative;
-  width: 32px;
-  height: 32px;
-}
-
-/* On a card the trigger only appears on hover; here it is a primary action. */
-.watch-menu .video-menu-trigger {
-  position: static;
-  opacity: 1;
-  width: 32px;
-  height: 32px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-}
-
-.watch-menu .video-menu-trigger:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
-.watch-menu .video-menu { top: 0; right: 0; }
-.watch-menu .video-menu-items { top: 38px; }

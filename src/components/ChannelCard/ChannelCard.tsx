@@ -1,27 +1,21 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Avatar } from '@x-tech-laboratories/x-libs/web/react/media'
 import { isSubscribed, subscribe, unsubscribe } from '../../db/index'
-import Button from '../Button'
-import './ChannelCard.css'
 
 interface ChannelCardProps {
   channelId: string
   name: string
   avatar?: string
-  /** Optional line under the name, e.g. "25.4M subscribers". */
+  // A line under the name, such as "25.4M subscribers".
   meta?: string
-  /** Called after the subscription state changes, so lists can refresh. */
+  // Called once the subscription changes, so lists can refresh.
   onSubscriptionChange?: (subscribed: boolean) => void
 }
 
-/**
- * Avatar-and-name card with an inline subscribe toggle. Shared by the
- * subscriptions grid and a channel's featured-channels tab.
- */
-export default function ChannelCard({
-  channelId, name, avatar, meta, onSubscriptionChange,
-}: ChannelCardProps) {
-  // null while unknown, so the button doesn't flash the wrong label.
+// A channel's avatar and name with a subscribe button, in the subscriptions grid and a channel's featured tab.
+export default function ChannelCard({ channelId, name, avatar, meta, onSubscriptionChange }: ChannelCardProps) {
+  // Unknown until read, so the button never shows the wrong word first.
   const [subscribed, setSubscribed] = useState<boolean | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -42,33 +36,28 @@ export default function ChannelCard({
       setSubscribed(!subscribed)
       onSubscriptionChange?.(!subscribed)
     } catch {
-      // Leave the previous state visible rather than lying about the result.
+      // The old state stays, rather than claiming a change that did not happen.
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <li className="channel-card">
+    <div className="card channel-card" role="listitem">
       <Link to={`/channel/${channelId}`} className="channel-card-link">
-        {avatar
-          ? <img className="channel-card-avatar" src={avatar} alt="" loading="lazy" />
-          : <div className="channel-card-avatar channel-card-avatar-initial" aria-hidden="true">
-              {name.charAt(0).toUpperCase()}
-            </div>
-        }
-        <p className="channel-card-name">{name}</p>
-        {meta && <p className="channel-card-meta">{meta}</p>}
+        <Avatar src={avatar} name={name} size="large" />
+        <strong className="channel-card-name">{name}</strong>
+        {meta && <span className="muted small">{meta}</span>}
       </Link>
-      <Button
-        size="sm"
-        className={`channel-card-sub${subscribed ? ' subscribed' : ''}`}
+      <button
+        type="button"
+        className={subscribed ? undefined : 'accent solid'}
         onClick={toggle}
         disabled={subscribed === null || busy}
         aria-label={subscribed ? `Unsubscribe from ${name}` : `Subscribe to ${name}`}
       >
         {subscribed === null ? '…' : subscribed ? 'Subscribed' : 'Subscribe'}
-      </Button>
-    </li>
+      </button>
+    </div>
   )
 }

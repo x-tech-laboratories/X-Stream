@@ -18,7 +18,8 @@
     "lint": "oxlint"
   },
   "dependencies": {
-    "@x-tech-laboratories/x-libs": "^0.7.0",
+    "@x-tech-laboratories/halon": "^0.2.0",
+    "@x-tech-laboratories/x-libs": "^0.8.0",
     "bgutils-js": "^3.2.0",
     "events": "^3.3.0",
     "googlevideo": "^4.1.1",

@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { ThemeProvider } from '../src/contexts/ThemeContext'
 import Subscriptions from '../src/pages/Channels'
 import Settings from '../src/pages/Settings'
 import Watch from '../src/pages/Watch'
@@ -119,7 +118,7 @@ const mockUnsubscribe = vi.mocked(unsubscribe)
 const mockGetSubscriptions = vi.mocked(getSubscriptions)
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
-  <ThemeProvider><MemoryRouter>{children}</MemoryRouter></ThemeProvider>
+  <MemoryRouter>{children}</MemoryRouter>
 )
 
 // ─── Search ───────────────────────────────────────────────────────────────────
@@ -127,21 +126,17 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 describe('Search page', () => {
   function renderSearch(query: string) {
     return render(
-      <ThemeProvider>
-        <MemoryRouter initialEntries={[`/search?q=${encodeURIComponent(query)}`]}>
-          <Routes><Route path="/search" element={<Search />} /></Routes>
-        </MemoryRouter>
-      </ThemeProvider>
+      <MemoryRouter initialEntries={[`/search?q=${encodeURIComponent(query)}`]}>
+        <Routes><Route path="/search" element={<Search />} /></Routes>
+      </MemoryRouter>
     )
   }
 
   it('shows hint when no query is provided', () => {
     render(
-      <ThemeProvider>
-        <MemoryRouter initialEntries={['/search']}>
-          <Routes><Route path="/search" element={<Search />} /></Routes>
-        </MemoryRouter>
-      </ThemeProvider>
+      <MemoryRouter initialEntries={['/search']}>
+        <Routes><Route path="/search" element={<Search />} /></Routes>
+      </MemoryRouter>
     )
     expect(screen.getByText(/enter a search term/i)).toBeInTheDocument()
   })
@@ -150,7 +145,7 @@ describe('Search page', () => {
     const { pluginManager } = await import('../src/plugins/manager')
     vi.mocked(pluginManager.getActive().search).mockReturnValueOnce(new Promise(() => {}))
     renderSearch('cats')
-    expect(screen.getByText(/searching/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Loading')).toBeInTheDocument()
   })
 
   it('renders search results', async () => {
@@ -162,7 +157,7 @@ describe('Search page', () => {
   it('each result title links to the watch page', async () => {
     renderSearch('cool video')
     const links = await screen.findAllByRole('link')
-    expect(links.some(l => l.getAttribute('href') === '/watch/abc123')).toBe(true)
+    expect(links.some(l => l.getAttribute('href') === '#/watch/abc123')).toBe(true)
   })
 
   it('channel name links to the channel page', async () => {
@@ -184,11 +179,9 @@ describe('Search page', () => {
 describe('Watch page', () => {
   function renderWatch(videoId: string) {
     return render(
-      <ThemeProvider>
-        <MemoryRouter initialEntries={[`/watch/${videoId}`]}>
-          <Routes><Route path="/watch/:videoId" element={<Watch />} /></Routes>
-        </MemoryRouter>
-      </ThemeProvider>
+      <MemoryRouter initialEntries={[`/watch/${videoId}`]}>
+        <Routes><Route path="/watch/:videoId" element={<Watch />} /></Routes>
+      </MemoryRouter>
     )
   }
 
@@ -196,7 +189,7 @@ describe('Watch page', () => {
     const { pluginManager } = await import('../src/plugins/manager')
     vi.mocked(pluginManager.getActive().getVideoInfo).mockReturnValueOnce(new Promise(() => {}))
     renderWatch('abc123')
-    expect(screen.getByText(/Loading/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Loading')).toBeInTheDocument()
   })
 
   it('renders video title and channel after loading', async () => {
@@ -278,11 +271,9 @@ describe('Subscriptions page', () => {
 describe('Channel page', () => {
   function renderChannel(channelId: string) {
     return render(
-      <ThemeProvider>
-        <MemoryRouter initialEntries={[`/channel/${channelId}`]}>
-          <Routes><Route path="/channel/:channelId" element={<Channel />} /></Routes>
-        </MemoryRouter>
-      </ThemeProvider>
+      <MemoryRouter initialEntries={[`/channel/${channelId}`]}>
+        <Routes><Route path="/channel/:channelId" element={<Channel />} /></Routes>
+      </MemoryRouter>
     )
   }
 
@@ -290,13 +281,13 @@ describe('Channel page', () => {
     const { pluginManager } = await import('../src/plugins/manager')
     vi.mocked(pluginManager.getActive().getChannelInfo).mockReturnValueOnce(new Promise(() => {}))
     renderChannel('UCuAXFkgsw1L7xaCfnd5JJOw')
-    expect(screen.getByText(/Loading/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Loading')).toBeInTheDocument()
   })
 
   it('renders channel name and subscriber count', async () => {
     renderChannel('UCuAXFkgsw1L7xaCfnd5JJOw')
     expect(await screen.findByText('Rick Astley')).toBeInTheDocument()
-    expect(screen.getByText(/4,000,000 subscribers/i)).toBeInTheDocument()
+    expect(screen.getByText('4M subscribers')).toBeInTheDocument()
   })
 
   it('shows Subscribe button when not subscribed', async () => {

@@ -15,51 +15,38 @@ vi.mock('../src/services/metadata', () => ({
 vi.mock('../src/utils/avatar', () => ({ downloadAvatar: vi.fn() }))
 
 const Layout = (await import('../src/components/Layout/Layout')).default
-const { ThemeProvider } = await import('../src/contexts/ThemeContext')
 
 function renderApp() {
   return render(
-    <ThemeProvider>
-      <MemoryRouter initialEntries={['/tall']}>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route path="tall" element={<Link to="/short">go short</Link>} />
-            <Route path="short" element={<p>short page</p>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
-    </ThemeProvider>,
+    <MemoryRouter initialEntries={['/tall']}>
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          <Route path="tall" element={<Link to="/short">go short</Link>} />
+          <Route path="short" element={<p>short page</p>} />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
   )
 }
 
 describe('scroll reset on navigation', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
-  // The layout is a fixed-height grid: `.content` scrolls, not the window.
-  // React Router only resets window scroll, so without an explicit reset the
-  // offset carries into the next page — and on a short page there is nothing
-  // to scroll, leaving the user stuck below its content.
-  it('returns the content container to the top when the route changes', async () => {
-    const { container } = renderApp()
-    const content = container.querySelector('.content') as HTMLElement
-    expect(content).toBeTruthy()
+  // The page scrolls with the window, and a short next page would otherwise open scrolled past its content.
+  it('scrolls back to the top when the route changes', async () => {
+    renderApp()
+    vi.mocked(window.scrollTo).mockClear()
 
-    content.scrollTop = 500
     await userEvent.click(screen.getByText('go short'))
 
     await waitFor(() => expect(screen.getByText('short page')).toBeInTheDocument())
-    expect(content.scrollTop).toBe(0)
+    expect(window.scrollTo).toHaveBeenCalledWith(0, 0)
   })
 
-  it('scrolls the container rather than the window', async () => {
-    const scrollTo = vi.fn()
-    vi.stubGlobal('scrollTo', scrollTo)
-
+  it('moves focus to the page so a screen reader hears the change', async () => {
     renderApp()
     await userEvent.click(screen.getByText('go short'))
 
-    await waitFor(() => expect(screen.getByText('short page')).toBeInTheDocument())
-    expect(scrollTo).not.toHaveBeenCalled()
-    vi.unstubAllGlobals()
+    await waitFor(() => expect(document.activeElement?.id).toBe('main'))
   })
 })

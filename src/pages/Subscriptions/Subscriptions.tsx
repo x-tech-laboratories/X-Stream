@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Segmented, Switch } from '@x-tech-laboratories/x-libs/web/react/controls'
+import { MediaGrid, Avatar } from '@x-tech-laboratories/x-libs/web/react/media'
+import { Empty, Skeleton } from '@x-tech-laboratories/x-libs/web/react/states'
 import { getSubscriptions, getSettings, saveSettings, getWatchedVideoIds, getAllCachedChannelVideos, getStaleChannelIds } from '../../db/index'
 import { refreshChannelVideos } from '../../services/videoCache'
 import PageLayout from '../../components/PageLayout'
 import VideoCard from '../../components/VideoCard'
-import ToggleButton from '../../components/ToggleButton'
-import MenuButton from '../../components/MenuButton'
 import type { Subscription } from '../../types'
 import type { SearchResult } from '../../plugins/types'
-import './Subscriptions.css'
 
 type Section =
   | { channel: Subscription; status: 'loading' }
@@ -94,12 +94,10 @@ export default function Subscriptions() {
     return () => { cancelled = true }
   }, [])
 
-  if (initialising) return <p className="feed-status">Loading…</p>
+  if (initialising) return <Skeleton lines={4} />
 
   if (!sections.length) return (
-    <p className="feed-empty">
-      You haven't subscribed to any channels yet. Subscribe from a video's watch page or channel page.
-    </p>
+    <Empty title="You haven't subscribed to any channels yet." hint="Subscribe from a video's watch page or channel page." />
   )
 
   const shouldHide = hideWatched || watchedStyle === 'hide'
@@ -122,45 +120,42 @@ export default function Subscriptions() {
   return (
     <PageLayout
       title="Subscriptions"
-      className="feed-page"
       actions={
         <>
-          <MenuButton
-            options={[
-              { value: 'channel', label: 'By channel' },
-              { value: 'date', label: 'By date' },
-            ]}
+          <Segmented<SortMode>
+            label="Order"
+            choices={[{ value: 'channel', label: 'By channel' }, { value: 'date', label: 'By date' }]}
             value={sortMode}
-            onChange={v => {
-              const mode = v as SortMode
+            on_change={mode => {
               setSortMode(mode)
               saveSettings({ feedSortMode: mode }).catch(() => {})
             }}
           />
-          <ToggleButton
-            active={hideWatched}
-            onClick={() => {
-              const next = !hideWatched
-              setHideWatched(next)
-              saveSettings({ feedHideWatched: next }).catch(() => {})
-            }}
-          >
+          <label className="check">
+            <Switch
+              label="Unwatched only"
+              checked={hideWatched}
+              on_change={next => {
+                setHideWatched(next)
+                saveSettings({ feedHideWatched: next }).catch(() => {})
+              }}
+            />
             Unwatched only
-          </ToggleButton>
+          </label>
         </>
       }
     >
       {sortMode === 'date' && (
         <>
           {loadingCount > 0 && (
-            <p className="feed-status">
+            <p className="muted" aria-live="polite">
               Loading {loadingCount} of {sections.length} channel{sections.length !== 1 ? 's' : ''}…
             </p>
           )}
           {allVideos.length === 0 && loadingCount === 0 ? (
-            <p className="feed-empty">No videos found.</p>
+            <Empty title="No videos found." />
           ) : (
-            <ul className="video-grid feed-grid-flat">
+            <MediaGrid label="Recent videos">
               {allVideos.map(v => (
                 <VideoCard
                   key={v.videoId}
@@ -175,14 +170,12 @@ export default function Subscriptions() {
                   dimmed={watchedIds.has(v.videoId) && !shouldHide && watchedStyle === 'dim'}
                 />
               ))}
-            </ul>
+            </MediaGrid>
           )}
         </>
       )}
 
       {sortMode === 'channel' && sections.map(section => {
-        if (section.status === 'done' && !section.videos.length) return null
-
         const videos = section.status === 'done'
           ? (shouldHide ? section.videos.filter(v => !watchedIds.has(v.videoId)) : section.videos)
           : []
@@ -190,25 +183,16 @@ export default function Subscriptions() {
         if (section.status === 'done' && !videos.length) return null
 
         return (
-          <section key={section.channel.channelId} className="feed-section">
-            <Link to={`/channel/${section.channel.channelId}`} className="feed-channel-link">
-              {section.channel.avatar
-                ? <img className="feed-channel-avatar" src={section.channel.avatar} alt="" loading="lazy" />
-                : <div className="feed-channel-avatar feed-channel-avatar-initial" aria-hidden="true">
-                    {section.channel.channelName.charAt(0).toUpperCase()}
-                  </div>
-              }
-              <span className="feed-channel-name">{section.channel.channelName}</span>
+          <section key={section.channel.channelId} className="feed-section" aria-label={section.channel.channelName}>
+            <Link to={`/channel/${section.channel.channelId}`} className="feed-channel">
+              <Avatar src={section.channel.avatar} name={section.channel.channelName} size="small" />
+              <h2>{section.channel.channelName}</h2>
             </Link>
 
-            {section.status === 'loading' && (
-              <p className="feed-section-status">Loading…</p>
-            )}
-            {section.status === 'error' && (
-              <p className="feed-section-status feed-section-error">Failed to load videos.</p>
-            )}
+            {section.status === 'loading' && <Skeleton lines={2} />}
+            {section.status === 'error' && <p className="tone-bad">Failed to load videos.</p>}
             {section.status === 'done' && (
-              <ul className="video-grid">
+              <MediaGrid label={`Videos from ${section.channel.channelName}`}>
                 {videos.map(v => (
                   <VideoCard
                     key={v.videoId}
@@ -221,7 +205,7 @@ export default function Subscriptions() {
                     dimmed={watchedIds.has(v.videoId) && !shouldHide && watchedStyle === 'dim'}
                   />
                 ))}
-              </ul>
+              </MediaGrid>
             )}
           </section>
         )
