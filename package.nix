@@ -2,7 +2,7 @@
 
 buildNpmPackage rec {
   pname = "x-stream";
-  version = "0.1.0";
+  version = "0.2.0";
 
   src = ./.;
   nodejs = nodejs_24;
@@ -11,7 +11,7 @@ buildNpmPackage rec {
   env.ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
 
   # After a lock file change, refresh with `nix run nixpkgs#prefetch-npm-deps -- package-lock.json`.
-  npmDepsHash = "sha256-HlgCKAqPq+fyCCDRdQUDGy/PMILKElWspWh/B9h8E1w=";
+  npmDepsHash = "sha256-fF+Swcw37BkhWdmgPzfYXd02pmckujqoHts4B6Ui94E=";
 
   # electron-vite writes the main process, preload and page into out/
   installPhase = ''
