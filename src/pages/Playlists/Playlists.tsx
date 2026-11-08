@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { MediaGrid, MediaTile } from '@x-tech-laboratories/x-libs/web/react/media'
 import { Empty, Loaded, use_resource } from '@x-tech-laboratories/x-libs/web/react/states'
 import { getAllPlaylists, createPlaylist } from '../../db/playlists'
+import { playlists_watch } from '../../db/watches'
 import { isPersonalPlaylist } from '../../types'
 import PageLayout from '../../components/PageLayout'
 
@@ -10,15 +11,9 @@ function video_count(count: number): string {
 }
 
 export default function Playlists() {
-  const playlists = use_resource(getAllPlaylists, [])
+  const playlists = use_resource(getAllPlaylists, [], { watch: playlists_watch })
   const [creating, setCreating] = useState(false)
   const [newTitle, setNewTitle] = useState('')
-
-  useEffect(() => {
-    const refresh = () => void playlists.reload(true)
-    window.addEventListener('playlists-changed', refresh)
-    return () => window.removeEventListener('playlists-changed', refresh)
-  }, [])
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault()

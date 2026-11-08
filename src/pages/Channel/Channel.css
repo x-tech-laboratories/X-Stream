@@ -8,12 +8,3 @@
   display: grid;
   gap: var(--space-5);
 }
-
-.channel-tabs {
-  display: flex;
-  align-items: center;
-  gap: var(--space-5);
-  flex-wrap: wrap;
-}
-
-.channel-tools { margin-left: auto; align-items: center; }

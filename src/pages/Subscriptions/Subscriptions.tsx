@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Segmented, Switch } from '@x-tech-laboratories/x-libs/web/react/controls'
 import { MediaGrid, Avatar } from '@x-tech-laboratories/x-libs/web/react/media'
-import { Empty, Skeleton } from '@x-tech-laboratories/x-libs/web/react/states'
+import { Empty, Skeleton, use_resource } from '@x-tech-laboratories/x-libs/web/react/states'
 import { getSubscriptions, getSettings, saveSettings, getWatchedVideoIds, getAllCachedChannelVideos, getStaleChannelIds } from '../../db/index'
+import { history_watch } from '../../db/watches'
 import { refreshChannelVideos } from '../../services/videoCache'
 import PageLayout from '../../components/PageLayout'
 import VideoCard from '../../components/VideoCard'
@@ -20,31 +21,21 @@ type SortMode = 'channel' | 'date'
 const VIDEOS_PER_CHANNEL = 8
 const BATCH_SIZE = 3
 
+async function load_watched() {
+  const [settings, ids] = await Promise.all([getSettings(), getWatchedVideoIds()])
+  return { style: settings.watchedVideoStyle ?? 'normal', ids, hide: settings.feedHideWatched ?? false, sort: settings.feedSortMode ?? 'channel' }
+}
+
 export default function Subscriptions() {
   const [sections, setSections] = useState<Section[]>([])
   const [initialising, setInitialising] = useState(true)
-  const [watchedIds, setWatchedIds] = useState<Set<string>>(new Set())
-  const [watchedStyle, setWatchedStyle] = useState<'normal' | 'dim' | 'hide'>('normal')
-  const [hideWatched, setHideWatched] = useState(false)
-  const [sortMode, setSortMode] = useState<SortMode>('channel')
-
-  useEffect(() => {
-    Promise.all([getSettings(), getWatchedVideoIds()])
-      .then(([s, ids]) => {
-        setWatchedStyle(s.watchedVideoStyle ?? 'normal')
-        setHideWatched(s.feedHideWatched ?? false)
-        setSortMode(s.feedSortMode ?? 'channel')
-        setWatchedIds(ids)
-      })
-      .catch(() => {})
-
-    const refresh = () =>
-      Promise.all([getSettings(), getWatchedVideoIds()])
-        .then(([s, ids]) => { setWatchedStyle(s.watchedVideoStyle ?? 'normal'); setWatchedIds(ids) })
-        .catch(() => {})
-    window.addEventListener('history-changed', refresh)
-    return () => window.removeEventListener('history-changed', refresh)
-  }, [])
+  const watched = use_resource(load_watched, [], { watch: history_watch })
+  const [hideChoice, setHideChoice] = useState<boolean | null>(null)
+  const [sortChoice, setSortChoice] = useState<SortMode | null>(null)
+  const watchedIds = watched.data?.ids ?? new Set<string>()
+  const watchedStyle = watched.data?.style ?? 'normal'
+  const hideWatched = hideChoice ?? watched.data?.hide ?? false
+  const sortMode = sortChoice ?? watched.data?.sort ?? 'channel'
 
   useEffect(() => {
     let cancelled = false
@@ -127,7 +118,7 @@ export default function Subscriptions() {
             choices={[{ value: 'channel', label: 'By channel' }, { value: 'date', label: 'By date' }]}
             value={sortMode}
             on_change={mode => {
-              setSortMode(mode)
+              setSortChoice(mode)
               saveSettings({ feedSortMode: mode }).catch(() => {})
             }}
           />
@@ -136,7 +127,7 @@ export default function Subscriptions() {
               label="Unwatched only"
               checked={hideWatched}
               on_change={next => {
-                setHideWatched(next)
+                setHideChoice(next)
                 saveSettings({ feedHideWatched: next }).catch(() => {})
               }}
             />

@@ -1,10 +1,13 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
 import { Shell } from '@x-tech-laboratories/x-libs/web/react/shell'
+import { SearchBox } from '@x-tech-laboratories/x-libs/web/react/controls'
 import { Avatar } from '@x-tech-laboratories/x-libs/web/react/media'
+import { use_resource } from '@x-tech-laboratories/x-libs/web/react/states'
 import { theme } from '../../theme'
 import { parseVideoId, parseChannelUrl } from '../../utils/youtube'
 import { getSubscriptions, subscribe } from '../../db/index'
+import { subscriptions_watch } from '../../db/watches'
 import { downloadAvatar } from '../../utils/avatar'
 import { getChannelInfoCached } from '../../services/metadata'
 import type { Subscription } from '../../types'
@@ -47,7 +50,6 @@ function Sidebar({ subscriptions }: { subscriptions: Subscription[] }) {
 // A pasted or typed video or channel link opens it; anything else searches.
 function TopbarSearch() {
   const navigate = useNavigate()
-  const [query, setQuery] = useState('')
 
   function submit(input: string) {
     const trimmed = input.trim()
@@ -57,29 +59,16 @@ function TopbarSearch() {
     if (videoId) navigate(`/watch/${videoId}`)
     else if (channelId) navigate(`/channel/${encodeURIComponent(channelId)}`)
     else navigate(`/search?q=${encodeURIComponent(trimmed)}`)
-    setQuery('')
   }
 
-  return (
-    <form className="topbar-search" role="search" onSubmit={event => { event.preventDefault(); submit(query) }}>
-      <input
-        type="search"
-        className="filter"
-        placeholder="Search or paste a YouTube URL…"
-        value={query}
-        onChange={event => setQuery(event.target.value)}
-        onPaste={event => {
-          const pasted = event.clipboardData.getData('text')
-          if (parseVideoId(pasted) || parseChannelUrl(pasted)) {
-            event.preventDefault()
-            submit(pasted)
-          }
-        }}
-        aria-label="Search"
-      />
-      <button type="submit" className="accent solid">Search</button>
-    </form>
-  )
+  // A pasted link is opened whole instead of landing in the box.
+  function paste(text: string): boolean {
+    if (!parseVideoId(text) && !parseChannelUrl(text)) return false
+    submit(text)
+    return true
+  }
+
+  return <SearchBox label="Search or paste a YouTube URL…" value="" on_submit={submit} on_paste={paste} submit_label="Search" clear_on_submit />
 }
 
 // ============================================================================
@@ -88,17 +77,7 @@ function TopbarSearch() {
 
 export default function Layout() {
   const { pathname } = useLocation()
-  const [subs, setSubs] = useState<Subscription[]>([])
-
-  const loadSubs = useCallback(() => {
-    getSubscriptions().then(setSubs).catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    loadSubs()
-    window.addEventListener('subscriptions-changed', loadSubs)
-    return () => window.removeEventListener('subscriptions-changed', loadSubs)
-  }, [loadSubs])
+  const subscriptions = use_resource(getSubscriptions, [], { watch: subscriptions_watch })
 
   // Refreshes each subscription's avatar on startup, one at a time with a pause between.
   useEffect(() => {
@@ -122,7 +101,7 @@ export default function Layout() {
   }, [])
 
   return (
-    <Shell brand="X-Stream" theme={theme} sidebar={<Sidebar subscriptions={subs} />} tools={<TopbarSearch />} view_key={pathname}>
+    <Shell brand="X-Stream" theme={theme} sidebar={<Sidebar subscriptions={subscriptions.data ?? []} />} tools={<TopbarSearch />} view_key={pathname}>
       <Outlet />
     </Shell>
   )

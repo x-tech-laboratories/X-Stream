@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { compact_count } from '@x-tech-laboratories/x-libs/web/format'
 import { Chip, Chips } from '@x-tech-laboratories/x-libs/web/react/badges'
-import { Select, Switch } from '@x-tech-laboratories/x-libs/web/react/controls'
+import { SearchBox, Select, Switch } from '@x-tech-laboratories/x-libs/web/react/controls'
 import { Facts, Tabs, type Fact, type TabItem } from '@x-tech-laboratories/x-libs/web/react/layout'
 import { Avatar, MediaGrid, MediaTile } from '@x-tech-laboratories/x-libs/web/react/media'
 import { use_reveal } from '@x-tech-laboratories/x-libs/web/react/reveal'
@@ -10,6 +10,7 @@ import { Empty, Loaded, Skeleton, use_resource } from '@x-tech-laboratories/x-li
 import { pluginManager } from '../../plugins/manager'
 import type { ChannelInfo, SearchResult, ChannelPlaylist } from '../../plugins/types'
 import { isSubscribed, subscribe, unsubscribe, getSettings, saveSettings, getWatchedVideoIds } from '../../db/index'
+import { history_watch } from '../../db/watches'
 import { downloadAvatar } from '../../utils/avatar'
 import { getOrFetchChannelVideos } from '../../services/videoCache'
 import { getChannelInfoCached } from '../../services/metadata'
@@ -141,9 +142,8 @@ function ChannelVideos({ channelId, options }: { channelId: string; options: Vid
   const [videos, setVideos] = useState<SearchResult[] | null>(null)
   const found = use_resource(async () => {
     const plugin = pluginManager.getActive()
-    if (!search) return null
     return plugin.searchChannelVideos ? plugin.searchChannelVideos(channelId, search) : []
-  }, [channelId, search])
+  }, [channelId, search], { enabled: !!search })
   const { shown_count, more_ref, reset } = use_reveal(PAGE_SIZE)
 
   // Fetched again for each order, following continuations until the channel has no more.
@@ -161,32 +161,37 @@ function ChannelVideos({ channelId, options }: { channelId: string; options: Vid
 
   useEffect(reset, [search])
 
-  if (search && found.loading) return <Skeleton lines={4} />
-  const source = search ? found.data : videos
-  if (source === null) return <Skeleton lines={4} />
-  if (source.length === 0) return <Empty title={search ? `No videos matching "${search}".` : 'No videos found.'} />
-
   const should_hide = hide_watched || watched_style === 'hide'
-  const visible = should_hide ? source.filter(video => !watched_ids.has(video.videoId)) : source
 
+  const list = (source: SearchResult[]) => {
+    if (source.length === 0) return <Empty title={search ? `No videos matching "${search}".` : 'No videos found.'} />
+    const visible = should_hide ? source.filter(video => !watched_ids.has(video.videoId)) : source
+    return (
+      <>
+        <MediaGrid label="Videos">
+          {visible.slice(0, shown_count).map(video => (
+            <VideoCard
+              key={video.videoId}
+              videoId={video.videoId}
+              title={video.title}
+              thumbnail={video.thumbnail}
+              duration={video.duration}
+              viewCountText={video.viewCountText}
+              publishedText={video.publishedText}
+              dimmed={watched_ids.has(video.videoId) && !should_hide && watched_style === 'dim'}
+            />
+          ))}
+        </MediaGrid>
+        {shown_count < visible.length && <div ref={more_ref} aria-hidden="true" />}
+      </>
+    )
+  }
+
+  // The whole list shows until a search is sent, and again once the box is cleared.
   return (
-    <>
-      <MediaGrid label="Videos">
-        {visible.slice(0, shown_count).map(video => (
-          <VideoCard
-            key={video.videoId}
-            videoId={video.videoId}
-            title={video.title}
-            thumbnail={video.thumbnail}
-            duration={video.duration}
-            viewCountText={video.viewCountText}
-            publishedText={video.publishedText}
-            dimmed={watched_ids.has(video.videoId) && !should_hide && watched_style === 'dim'}
-          />
-        ))}
-      </MediaGrid>
-      {shown_count < visible.length && <div ref={more_ref} aria-hidden="true" />}
-    </>
+    <Loaded resource={found} lines={4} idle={videos === null ? <Skeleton lines={4} /> : list(videos)}>
+      {list}
+    </Loaded>
   )
 }
 
@@ -204,14 +209,13 @@ function ChannelView({ channelId }: { channelId: string }) {
   const [subscribed, setSubscribed] = useState(false)
   const [playlistsOpened, setPlaylistsOpened] = useState(false)
   const [sortMode, setSortMode] = useState<SortMode>('Latest')
-  // What is typed, apart from the search sent, so a request goes only on Enter.
-  const [searchDraft, setSearchDraft] = useState('')
+  // The search sent on Enter; what is typed stays in the box.
   const [search, setSearch] = useState('')
   const [hideWatched, setHideWatched] = useState<boolean | null>(null)
   const watched = use_resource(async () => {
     const [settings, ids] = await Promise.all([getSettings(), getWatchedVideoIds()])
     return { style: settings.watchedVideoStyle ?? 'normal', ids, hide: settings.channelPageHideWatched ?? false }
-  }, [])
+  }, [], { watch: history_watch })
   const info = use_resource(async () => {
     const channel = await getChannelInfoCached(channelId)
     isSubscribed(channelId).then(async subbed => {
@@ -234,12 +238,6 @@ function ChannelView({ channelId }: { channelId: string }) {
     const plugin = pluginManager.getActive()
     return plugin.getFeaturedChannels ? plugin.getFeaturedChannels(channelId).catch(() => []) : []
   }, [channelId])
-
-  useEffect(() => {
-    const refresh = () => void watched.reload(true)
-    window.addEventListener('history-changed', refresh)
-    return () => window.removeEventListener('history-changed', refresh)
-  }, [])
 
   const hide = hideWatched ?? watched.data?.hide ?? false
 
@@ -284,24 +282,11 @@ function ChannelView({ channelId }: { channelId: string }) {
               <ChannelDetails info={channel} />
             </>}
             tabs={
-              <div className="channel-tabs">
+              <div className="tab-row">
                 <Tabs<Tab> label="Channel" items={tabs} active={tab} on_select={chooseTab} />
                 {tab === 'videos' && (
-                  <div className="toolbar channel-tools">
-                    <form role="search" onSubmit={event => { event.preventDefault(); setSearch(searchDraft.trim()) }}>
-                      <input
-                        type="search"
-                        className="filter"
-                        placeholder="Search this channel…"
-                        value={searchDraft}
-                        onChange={event => {
-                          setSearchDraft(event.target.value)
-                          // Clearing the box goes straight back to the whole list.
-                          if (!event.target.value) setSearch('')
-                        }}
-                        aria-label="Search this channel"
-                      />
-                    </form>
+                  <div className="toolbar">
+                    <SearchBox label="Search this channel…" value={search} on_submit={text => setSearch(text.trim())} />
                     {!search && <Select<SortMode> label="Sort videos" bare options={SORT_OPTIONS} value={sortMode} on_change={setSortMode} />}
                     <label className="check">
                       <Switch

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { confirm_dialog } from '@x-tech-laboratories/x-libs/web/react/dialog'
 import { RowActions } from '@x-tech-laboratories/x-libs/web/react/layout'
@@ -10,6 +10,7 @@ import {
   removeFromPlaylist, reorderPlaylist,
   getSubscribedPlaylist, unsubscribeFromPlaylist, refreshSubscribedPlaylist,
 } from '../../db/playlists'
+import { playlists_watch } from '../../db/watches'
 import { pluginManager } from '../../plugins/manager'
 import type { PlaylistVideo, PersonalPlaylist, SubscribedPlaylist } from '../../types'
 import PageLayout from '../../components/PageLayout'
@@ -36,16 +37,10 @@ function video_count(count: number): string {
 // `/playlist/yt/:id` is a subscribed YouTube list; `/playlist/:id` is a personal one.
 export default function Playlist({ subscribed = false }: { subscribed?: boolean }) {
   const { playlistId = '' } = useParams<{ playlistId: string }>()
-  const playlist = use_resource(() => load_playlist(playlistId, subscribed), [playlistId, subscribed])
+  const playlist = use_resource(() => load_playlist(playlistId, subscribed), [playlistId, subscribed], { watch: playlists_watch })
   const [refreshing, setRefreshing] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
-
-  useEffect(() => {
-    const refresh = () => void playlist.reload(true)
-    window.addEventListener('playlists-changed', refresh)
-    return () => window.removeEventListener('playlists-changed', refresh)
-  }, [])
 
   async function handleRefresh() {
     const plugin = pluginManager.getActive()

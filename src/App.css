@@ -1,15 +1,4 @@
-/* The app's own layout around Halon's frame: the top bar's search, the sidebar's channels, and page heads. */
-
-/* ── Top bar ─────────────────────────────────────────────────────────────── */
-
-.topbar-search {
-  display: flex;
-  flex: 1;
-  gap: var(--space-4);
-  max-width: 640px;
-}
-
-.topbar-search input { flex: 1; }
+/* The app's own layout around Halon's frame: the sidebar's channels and the pages' own blocks. */
 
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 
@@ -47,23 +36,6 @@
 }
 
 /* ── Pages ───────────────────────────────────────────────────────────────── */
-
-.page-banner {
-  display: block;
-  width: 100%;
-  aspect-ratio: 6 / 1;
-  border-radius: var(--radius-default);
-  object-fit: cover;
-}
-
-.page-identity {
-  display: flex;
-  align-items: center;
-  gap: var(--space-5);
-  min-width: 0;
-}
-
-.page-identity p { margin: var(--space-1) 0 0; }
 
 .feed-section {
   display: grid;
