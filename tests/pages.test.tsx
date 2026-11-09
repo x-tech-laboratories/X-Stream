@@ -36,7 +36,8 @@ const MOCK_SEARCH_RESULTS = [
   { videoId: 'def456', title: 'Another Video', channelId: 'ch2', channelName: 'Another Channel', thumbnail: '', duration: 240 },
 ]
 
-vi.mock('../src/plugins/manager', () => {
+vi.mock('../src/plugins/manager', async () => {
+  const { create_plugin_host } = await import('@x-tech-laboratories/x-libs/plugins')
   // Stable shared object so vi.mocked(pluginManager.getActive().search)
   // always refers to the same vi.fn() that the component calls.
   const _plugin = {
@@ -62,6 +63,7 @@ vi.mock('../src/plugins/manager', () => {
   }
   return {
     pluginManager: {
+      host: create_plugin_host({ app: { id: 'x-stream', version: '0.0.0' } }),
       getActive: vi.fn(() => _plugin),
       list: vi.fn(() => [
         { id: 'youtubejs', name: 'youtube.js (Local)', description: 'Runs in the webview' },

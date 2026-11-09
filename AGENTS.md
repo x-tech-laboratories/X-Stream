@@ -40,7 +40,7 @@ npm run dev
 - **Widgets and look**: pages are drawn with X-Libs' React widgets (`Shell`, `MediaTile`, `MenuButton`, `Segmented`, `Switch`, `use_resource`, `confirm_dialog`, …) on Halon's stylesheets, imported once in `src/main.tsx`; the app's own CSS holds only layout and player rules on Halon's tokens, never raw colours
 - **Theme**: `src/theme.ts` is X-Libs' `theme_choice`, kept in the settings and mirrored in this browser
 - **Pages**: `src/pages/<Name>/` (Search, Watch, Channel, Subscriptions, Channels, History, Settings). There is no Home page — `/` redirects to the user's configured startup page.
-- **Data layer**: PouchDB (browser) via `src/db/`; the plugin system (`src/plugins/`, youtubejs only) fetches YouTube data
+- **Data layer**: PouchDB (browser) via `src/db/`; the plugin system (`src/plugins/`, X-Libs' plugin host with the youtubejs plugin bundled, each plugin providing a `video_source`) fetches YouTube data
 - **Desktop-only features** (e.g. FreeTube import) run in the main process (`src/main/`), are listed in the bridge table in `src/shared/bridge.ts` (X-Libs `define_bridge`), wrapped in `src/utils/desktop.ts`, and guarded with `is_desktop()` in the page
 - The window comes from X-Libs `create_window`: links and other sites open in the browser, and its size and place are kept in `window.json` in the app's data folder
 

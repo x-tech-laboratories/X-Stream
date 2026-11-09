@@ -4,13 +4,10 @@ import '@x-tech-laboratories/halon/halon-tokens.css'
 import '@x-tech-laboratories/halon/halon.css'
 import 'shaka-player/dist/controls.css'
 import App from './App.tsx'
-import { pluginManager } from './plugins/manager'
-import { YoutubeJsPlugin } from './plugins/youtubejs/index'
+import { pluginManager, startPlugins } from './plugins/manager'
 import { getSettings, stripInlinedThumbnails } from './db/index'
 import { startRefresher } from './services/refresher'
 import { load_saved_theme } from './theme'
-
-pluginManager.register(new YoutubeJsPlugin())
 
 void load_saved_theme()
 
@@ -22,20 +19,22 @@ stripInlinedThumbnails().catch(() => {})
 // small batches, so it never competes with what the user is actually loading.
 startRefresher()
 
-// Restore saved plugin + per-plugin config, falling back to auto-select
-getSettings()
-  .then(settings => {
-    try {
-      pluginManager.setActive(settings.activePlugin)
-    } catch {
-      pluginManager.autoSelect().catch(() => {})
-    }
-  })
-  .catch(() => pluginManager.autoSelect().catch(() => {}))
+// Pages ask for the active source as they mount, so they draw once the plugins have started.
+void startPlugins().finally(() => {
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
-
+  // Restore the saved source, falling back to auto-select
+  getSettings()
+    .then(settings => {
+      try {
+        pluginManager.setActive(settings.activePlugin)
+      } catch {
+        pluginManager.autoSelect().catch(() => {})
+      }
+    })
+    .catch(() => pluginManager.autoSelect().catch(() => {}))
+})

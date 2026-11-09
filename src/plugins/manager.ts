@@ -1,48 +1,72 @@
+// Video sources as plugins on X-Libs' plugin host: each plugin provides a video_source, and the one picked in the settings is in use.
+
+import { create_plugin_host, define_plugin, json_plugin_storage, type PluginHost } from '@x-tech-laboratories/x-libs/plugins'
+import { browser_storage } from '@x-tech-laboratories/x-libs/web/prefs'
+import packageJson from '../../package.json'
 import type { VideoPlugin } from './types'
+import { YoutubeJsPlugin } from './youtubejs/index'
 
-class PluginManager {
-  private readonly registry = new Map<string, VideoPlugin>()
-  private activeId: string | null = null
+// What X-Stream lets its plugins reach.
+export interface XStreamApi {
+  providers: { video_source: VideoPlugin }
+}
 
-  register(plugin: VideoPlugin): void {
-    this.registry.set(plugin.id, plugin)
-  }
+export type XStreamPluginHost = PluginHost<XStreamApi>
 
-  list(): VideoPlugin[] {
-    return Array.from(this.registry.values())
-  }
+export function createPluginManager(host: XStreamPluginHost) {
+  let activeId: string | null = null
+  const sources = () => host.providers('video_source').map(provided => provided.value)
 
-  get(id: string): VideoPlugin | undefined {
-    return this.registry.get(id)
-  }
+  return {
+    host,
+    list: sources,
+    get: (id: string) => sources().find(source => source.id === id),
 
-  setActive(id: string): void {
-    if (!this.registry.has(id)) throw new Error(`Plugin "${id}" is not registered`)
-    this.activeId = id
-  }
+    setActive(id: string): void {
+      if (!sources().some(source => source.id === id)) throw new Error(`Plugin "${id}" is not registered`)
+      activeId = id
+    },
 
-  getActive(): VideoPlugin {
-    if (this.activeId && this.registry.has(this.activeId)) {
-      return this.registry.get(this.activeId)!
-    }
-    // Fall back to first available plugin
-    for (const plugin of this.registry.values()) {
-      return plugin
-    }
-    throw new Error('No plugins registered')
-  }
+    // The picked source, or the first one while the picked one is off or gone.
+    getActive(): VideoPlugin {
+      const provided = host.provider('video_source', activeId ?? undefined)
+      if (!provided) throw new Error('No plugins registered')
+      return provided.value
+    },
 
-  /** Checks availability and sets the first available plugin as active */
-  async autoSelect(): Promise<VideoPlugin> {
-    for (const plugin of this.registry.values()) {
-      if (await plugin.isAvailable()) {
-        this.activeId = plugin.id
-        return plugin
+    async autoSelect(): Promise<VideoPlugin> {
+      for (const source of sources()) {
+        if (await source.isAvailable()) {
+          activeId = source.id
+          return source
+        }
       }
-    }
-    throw new Error('No available plugins found')
+      throw new Error('No available plugins found')
+    },
   }
 }
 
+export const youtubeJsPlugin = define_plugin<XStreamApi>({
+  id: 'x-stream.youtubejs',
+  name: 'youtube.js (Local)',
+  version: packageJson.version,
+  app: 'x-stream',
+  description: 'Reverse-engineered YouTube client. Runs in the page; the desktop app sends its requests from the main process.',
+  start: context => context.provide('video_source', 'youtubejs', new YoutubeJsPlugin()),
+})
+
+const storage = browser_storage()
+export const pluginHost: XStreamPluginHost = create_plugin_host<XStreamApi>({
+  app: { id: 'x-stream', version: packageJson.version },
+  storage: storage && json_plugin_storage({ get: () => storage.getItem('x-stream.plugins'), set: text => storage.setItem('x-stream.plugins', text) }),
+  on_error: (pluginId, error) => console.warn(`plugin ${pluginId}:`, error),
+})
+
 // Singleton — import this everywhere
-export const pluginManager = new PluginManager()
+export const pluginManager = createPluginManager(pluginHost)
+
+// Adds the bundled plugins and starts those that are on.
+export async function startPlugins(): Promise<void> {
+  await pluginHost.add(youtubeJsPlugin)
+  await pluginHost.start()
+}
