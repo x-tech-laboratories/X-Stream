@@ -16,6 +16,7 @@ import { freetube_read_data, freetube_scan } from './freetube.ts'
 function open_main_window(): void {
   create_window(BrowserWindow, {
     title: 'X-Stream',
+    icon: join(import.meta.dirname, '../../resources/icon.png'),
     file: join(import.meta.dirname, '../renderer/index.html'),
     dev_url: process.env.ELECTRON_RENDERER_URL,
     preload: join(import.meta.dirname, '../preload/index.cjs'),
