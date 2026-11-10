@@ -3,6 +3,7 @@ import type { Theme } from '@x-tech-laboratories/x-libs/web/theme'
 import { Badge } from '@x-tech-laboratories/x-libs/web/react/badges'
 import { Segmented } from '@x-tech-laboratories/x-libs/web/react/controls'
 import { SettingRow, SettingsGroup } from '@x-tech-laboratories/x-libs/web/react/layout'
+import { PluginSettings } from '@x-tech-laboratories/x-libs/web/react/plugins'
 import { theme } from '../../theme'
 import { pluginManager } from '../../plugins/manager'
 import { saveSettings, getSettings, subscribe, recordWatch } from '../../db/index'
@@ -276,6 +277,8 @@ export default function Settings() {
           </div>
         )}
       </SettingsGroup>
+
+      <PluginSettings host={pluginManager.host} />
     </PageLayout>
   )
 }

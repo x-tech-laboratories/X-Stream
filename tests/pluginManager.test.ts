@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { create_plugin_host, define_plugin } from '@x-tech-laboratories/x-libs/plugins'
+import { createPluginManager, youtubeJsPlugin, type XStreamApi } from '../src/plugins/manager'
 import type { VideoPlugin, VideoInfo, SearchResult, ChannelInfo } from '../src/plugins/types'
 
-// Minimal stub plugin for testing the manager in isolation
+// Minimal stub source for testing the manager in isolation
 function makeStub(id: string, available: boolean): VideoPlugin {
   return {
     id,
@@ -14,76 +16,70 @@ function makeStub(id: string, available: boolean): VideoPlugin {
   }
 }
 
-// Import a fresh PluginManager class (not the singleton) for test isolation
-class PluginManager {
-  private readonly registry = new Map<string, VideoPlugin>()
-  private activeId: string | null = null
-  register(p: VideoPlugin) { this.registry.set(p.id, p) }
-  list() { return Array.from(this.registry.values()) }
-  get(id: string) { return this.registry.get(id) }
-  setActive(id: string) {
-    if (!this.registry.has(id)) throw new Error(`Plugin "${id}" is not registered`)
-    this.activeId = id
-  }
-  getActive() {
-    if (this.activeId && this.registry.has(this.activeId)) return this.registry.get(this.activeId)!
-    for (const p of this.registry.values()) return p
-    throw new Error('No plugins registered')
-  }
-  async autoSelect() {
-    for (const p of this.registry.values()) {
-      if (await p.isAvailable()) { this.activeId = p.id; return p }
-    }
-    throw new Error('No available plugins found')
-  }
+function sourcePlugin(source: VideoPlugin) {
+  return define_plugin<XStreamApi>({ id: `test.${source.id}`, name: source.id, version: '1.0.0', start: context => context.provide('video_source', source.id, source) })
 }
 
 describe('PluginManager', () => {
-  let manager: PluginManager
+  let host: ReturnType<typeof create_plugin_host<XStreamApi>>
+  let manager: ReturnType<typeof createPluginManager>
 
-  beforeEach(() => { manager = new PluginManager() })
+  beforeEach(() => {
+    host = create_plugin_host<XStreamApi>({ app: { id: 'x-stream', version: '1.0.0' } })
+    manager = createPluginManager(host)
+  })
 
-  it('registers and lists plugins', () => {
-    manager.register(makeStub('a', true))
-    manager.register(makeStub('b', true))
+  async function register(...sources: VideoPlugin[]) {
+    for (const source of sources) await host.add(sourcePlugin(source))
+    await host.start()
+  }
+
+  it('lists the sources running plugins provide', async () => {
+    await register(makeStub('a', true), makeStub('b', true))
     expect(manager.list().map(p => p.id)).toEqual(['a', 'b'])
+    expect(manager.get('b')?.id).toBe('b')
   })
 
-  it('retrieves a plugin by id', () => {
-    manager.register(makeStub('other', true))
-    expect(manager.get('other')?.id).toBe('other')
+  it('setActive throws for unknown source', async () => {
+    await register(makeStub('a', true))
+    expect(() => manager.setActive('ghost')).toThrow('Plugin "ghost" is not registered')
   })
 
-  it('setActive throws for unknown plugin', () => {
-    expect(() => manager.setActive('ghost')).toThrow()
-  })
-
-  it('setActive selects the named plugin', () => {
-    manager.register(makeStub('a', true))
-    manager.register(makeStub('b', true))
+  it('setActive selects the named source', async () => {
+    await register(makeStub('a', true), makeStub('b', true))
     manager.setActive('b')
     expect(manager.getActive().id).toBe('b')
   })
 
-  it('getActive falls back to first registered when none set', () => {
-    manager.register(makeStub('first', true))
-    manager.register(makeStub('second', true))
+  it('getActive falls back to the first source when none is set or the set one is turned off', async () => {
+    await register(makeStub('first', true), makeStub('second', true))
+    expect(manager.getActive().id).toBe('first')
+
+    manager.setActive('second')
+    await host.disable('test.second')
     expect(manager.getActive().id).toBe('first')
   })
 
-  it('getActive throws when registry is empty', () => {
+  it('getActive throws when no source is running', async () => {
+    await register()
     expect(() => manager.getActive()).toThrow('No plugins registered')
   })
 
-  it('autoSelect picks the first available plugin', async () => {
-    manager.register(makeStub('unavailable', false))
-    manager.register(makeStub('available', true))
-    const p = await manager.autoSelect()
-    expect(p.id).toBe('available')
+  it('autoSelect picks the first available source', async () => {
+    await register(makeStub('unavailable', false), makeStub('available', true))
+    expect((await manager.autoSelect()).id).toBe('available')
+    expect(manager.getActive().id).toBe('available')
   })
 
-  it('autoSelect throws when no plugin is available', async () => {
-    manager.register(makeStub('a', false))
+  it('autoSelect throws when no source is available', async () => {
+    await register(makeStub('a', false))
     await expect(manager.autoSelect()).rejects.toThrow('No available plugins found')
+  })
+
+  it('the bundled youtube.js plugin provides the youtubejs source', async () => {
+    await host.add(youtubeJsPlugin)
+    await host.start()
+    expect(host.list()[0]?.state).toBe('running')
+    expect(manager.getActive().id).toBe('youtubejs')
   })
 })
