@@ -1,11 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import PouchDB from 'pouchdb'
-// @ts-expect-error — no type declaration for pouchdb-adapter-memory
-import MemoryAdapter from 'pouchdb-adapter-memory'
+import { memory_store } from './memory_store.ts'
 
-PouchDB.plugin(MemoryAdapter)
-
-const db = new PouchDB('refresher-test', { adapter: 'memory' })
+const { store: db, clear } = memory_store()
 vi.mock('../src/db/client', () => ({ db: () => db }))
 
 const getChannelInfo = vi.fn()
@@ -24,8 +20,7 @@ const { setMetadata, getMetadata, METADATA_TTL_MS, MAX_FAILURES } =
   await import('../src/db/metadata')
 
 async function reset() {
-  const all = await db.allDocs()
-  await Promise.all(all.rows.map(r => db.remove(r.id, r.value.rev)))
+  clear()
   vi.clearAllMocks()
   getSubscriptions.mockResolvedValue([])
   getHistory.mockResolvedValue([])

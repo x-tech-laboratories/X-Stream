@@ -184,4 +184,6 @@ export interface UserSettings {
   channelsHideWatched: boolean
   channelPageHideWatched: boolean
   ytCookie?: string
+  /** Days a personal playlist's older versions are kept; 90 unless set. */
+  playlistHistoryDays?: number
 }

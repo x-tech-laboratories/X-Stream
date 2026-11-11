@@ -347,9 +347,3 @@ export async function getStaleChannelIds(
 
   return new Set(channelIds.filter(id => !fresh.has(id)))
 }
-
-// ─── P2P Sync ─────────────────────────────────────────────────────────────────
-
-export function syncWith(remoteUrl: string) {
-  return db().sync(remoteUrl, { live: true, retry: true })
-}

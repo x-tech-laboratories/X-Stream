@@ -40,7 +40,7 @@ npm run dev
 - **Widgets and look**: pages are drawn with X-Libs' React widgets (`Shell`, `MediaTile`, `MenuButton`, `Segmented`, `Switch`, `use_resource`, `confirm_dialog`, …) on Halon's stylesheets, imported once in `src/main.tsx`; the app's own CSS holds only layout and player rules on Halon's tokens, never raw colours
 - **Theme**: `src/theme.ts` is X-Libs' `theme_choice`, kept in the settings and mirrored in this browser
 - **Pages**: `src/pages/<Name>/` (Search, Watch, Channel, Subscriptions, Channels, History, Settings). There is no Home page — `/` redirects to the user's configured startup page.
-- **Data layer**: PouchDB (browser) via `src/db/`; the plugin system (`src/plugins/`, X-Libs' plugin host with the youtubejs plugin bundled, each plugin providing a `video_source`) fetches YouTube data
+- **Data layer**: `src/db/` makes PouchDB-style document calls (`src/shared/documents.ts`) that the main process answers on SQLite (`src/main/documents.ts`, `src/main/store.ts`): the user's documents in `x-stream.db`, backed up daily by X-Libs `sqlite_backups` with personal playlists' history from X-Libs `create_history` (`src/main/playlist_history.ts`), and the `metadata-`/`channelcache-` copies of YouTube's data in `cache.db`, which backups leave out; tests run the same tables in memory (`tests/memory_store.ts`); the plugin system (`src/plugins/`, X-Libs' plugin host with the youtubejs plugin bundled, each plugin providing a `video_source`) fetches YouTube data
 - **Desktop-only features** (e.g. FreeTube import) run in the main process (`src/main/`), are listed in the bridge table in `src/shared/bridge.ts` (X-Libs `define_bridge`), wrapped in `src/utils/desktop.ts`, and guarded with `is_desktop()` in the page
 - The window comes from X-Libs `create_window`: links and other sites open in the browser, and its size and place are kept in `window.json` in the app's data folder
 
@@ -118,7 +118,7 @@ Adding a page: create `src/pages/<Name>/<Name>.tsx` (+ `.css`, `index.ts`), then
 
 - TypeScript strict mode everywhere; no `any` unless unavoidable and documented
 - React: pages live in `src/pages/<Name>/`, shared UI in `src/components/<Name>/`; each folder has an `index.ts` re-export
-- PouchDB document IDs use a typed prefix: `sub-<channelId>`, `history-<videoId>`, `settings`, `channel-cache-<channelId>`
+- Document IDs use a typed prefix: `sub-<channelId>`, `history-<videoId>`, `playlist-<id>`, `playlistsub-<id>`, `settings`, `channelcache-<channelId>`, `metadata-<kind>-<id>`
 
 ## Documentation
 

@@ -1,16 +1,17 @@
-// The desktop app's calls into its main process: YouTube requests, opening links and the FreeTube import.
+// The desktop app's calls into its main process: YouTube requests, the data, opening links and the FreeTube import.
 
 import type { Client } from '@x-tech-laboratories/x-libs/electron/bridge'
 import type { EventsClient } from '@x-tech-laboratories/x-libs/electron/events'
 import { create_page_fetch, create_page_stream_fetch } from '@x-tech-laboratories/x-libs/electron/fetch'
 
-import type { FreetubeData, XStreamApi, XStreamEvents } from '../shared/bridge.ts'
+import type { FreetubeData, XStreamApi, XStreamDeviceApi, XStreamEvents } from '../shared/bridge.ts'
 
 export type { FreetubeData } from '../shared/bridge.ts'
 
 declare global {
   interface Window {
     x_stream?: Client<XStreamApi>
+    x_stream_device?: Client<XStreamDeviceApi>
     x_stream_events?: EventsClient<XStreamEvents>
   }
 }
@@ -24,9 +25,15 @@ export function is_desktop(): boolean {
   return typeof window !== 'undefined' && window.x_stream !== undefined
 }
 
-function desktop_api(): Client<XStreamApi> {
+export function desktop_api(): Client<XStreamApi> {
   if (!window.x_stream) throw new Error('This needs the X-Stream desktop app')
   return window.x_stream
+}
+
+// This device's backups and the playlists' history.
+export function desktop_device(): Client<XStreamDeviceApi> {
+  if (!window.x_stream_device) throw new Error('This needs the X-Stream desktop app')
+  return window.x_stream_device
 }
 
 function desktop_events(): EventsClient<XStreamEvents> {
