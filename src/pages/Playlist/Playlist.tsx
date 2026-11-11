@@ -14,7 +14,9 @@ import { playlists_watch } from '../../db/watches'
 import { pluginManager } from '../../plugins/manager'
 import type { PlaylistVideo, PersonalPlaylist, SubscribedPlaylist } from '../../types'
 import PageLayout from '../../components/PageLayout'
+import { open_playlist_history } from '../../components/PlaylistHistory'
 import { video_length } from '../../components/VideoCard/VideoCard'
+import { is_desktop } from '../../utils/desktop'
 
 type Found =
   | { kind: 'personal'; doc: PersonalPlaylist }
@@ -59,7 +61,7 @@ export default function Playlist({ subscribed = false }: { subscribed?: boolean 
   function remove_playlist(is_personal: boolean, title: string) {
     confirm_dialog({
       title: is_personal ? 'Delete playlist' : 'Unsubscribe from playlist',
-      message: is_personal ? `Delete "${title}"? This cannot be undone.` : `Stop following "${title}" and drop its stored copy?`,
+      message: is_personal ? `Delete "${title}"? It can be brought back from Changes on the Playlists page.` : `Stop following "${title}" and drop its stored copy?`,
       confirm_label: is_personal ? 'Delete' : 'Unsubscribe',
       danger: true,
       run: async () => {
@@ -85,6 +87,7 @@ export default function Playlist({ subscribed = false }: { subscribed?: boolean 
             actions={<>
               {!isPersonal && <button type="button" onClick={handleRefresh} disabled={refreshing}>{refreshing ? 'Refreshing…' : 'Refresh'}</button>}
               {isPersonal && !renaming && <button type="button" onClick={() => { setRenaming(true); setDraftTitle(doc.title) }}>Rename</button>}
+              {isPersonal && is_desktop() && <button type="button" onClick={() => open_playlist_history(playlistId, doc.title)}>History</button>}
               <button type="button" className="danger" onClick={() => remove_playlist(isPersonal, doc.title)}>{isPersonal ? 'Delete' : 'Unsubscribe'}</button>
             </>}
             extra={<>

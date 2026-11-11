@@ -4,7 +4,7 @@
 
 A free, open source, privacy-respecting YouTube client.
 
-X-Stream lets you browse and watch YouTube content without being tracked by Google. It is fully peer-to-peer — your data lives on your device and syncs directly with your other devices, with no central server involved.
+X-Stream lets you browse and watch YouTube content without being tracked by Google. Your data lives on your device, with no account and no server of ours involved.
 
 ## Platforms
 
@@ -12,6 +12,24 @@ X-Stream lets you browse and watch YouTube content without being tracked by Goog
 |----------|-----|
 | Desktop | Electron (Linux / macOS / Windows) |
 | Mobile | React Native — planned |
+
+## Your data
+
+Subscriptions, playlists, watch history and settings are kept in `x-stream.db` in the app's profile folder
+(`~/.config/x-stream` on Linux), and copies of YouTube's channel and video details in `cache.db` beside it. The first
+start of this version brings over the copy earlier versions kept in the window's own storage, and leaves that copy where
+it was.
+
+`x-stream.db` is backed up once a day into `backups` beside it, keeping the last 14; Settings → Backups backs up by
+hand, changes that, and restores a backup, backing up the current data first. `cache.db` is not backed up, since it is
+fetched again.
+
+Every change to a playlist of your own is kept: History on the playlist goes back to an earlier version, and Changes on
+the Playlists page brings back a deleted playlist. Older versions go after 90 days, which Settings → Playlist history
+changes. The watch history is a log of what was watched rather than something edited, and a subscription or a
+subscribed playlist is only followed, not edited, so neither has a history of its own.
+
+X-Stream has no server, so nothing syncs between devices.
 
 ## Development
 

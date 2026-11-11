@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { Theme } from '@x-tech-laboratories/x-libs/web/theme'
 import { Badge } from '@x-tech-laboratories/x-libs/web/react/badges'
-import { Segmented } from '@x-tech-laboratories/x-libs/web/react/controls'
+import { NumberField, Segmented } from '@x-tech-laboratories/x-libs/web/react/controls'
+import { BackupSettings } from '@x-tech-laboratories/x-libs/web/react/backup_settings'
 import { SettingRow, SettingsGroup } from '@x-tech-laboratories/x-libs/web/react/layout'
 import { PluginSettings } from '@x-tech-laboratories/x-libs/web/react/plugins'
 import { theme } from '../../theme'
@@ -10,9 +11,12 @@ import { saveSettings, getSettings, subscribe, recordWatch } from '../../db/inde
 import { STARTUP_PAGES, type StartupPage } from '../../types'
 import { setCookie as ytjsSetCookie } from '../../plugins/youtubejs/innertube'
 import { downloadAvatar } from '../../utils/avatar'
-import { is_desktop, freetubeScan, freetubeReadData } from '../../utils/desktop'
+import { is_desktop, desktop_device, freetubeScan, freetubeReadData } from '../../utils/desktop'
 import PageLayout from '../../components/PageLayout'
 import './Settings.css'
+
+// The same default as the main process's, which prunes the history.
+const DEFAULT_HISTORY_DAYS = 90
 
 // ============================================================================
 // FreeTube import
@@ -44,6 +48,7 @@ export default function Settings() {
   const [themeChoice, setThemeChoice] = useState<Theme>(theme.get)
   const [watchedStyle, setWatchedStyleState] = useState<WatchedStyle>('normal')
   const [startupPage, setStartupPageState] = useState<StartupPage>('subscriptions')
+  const [historyDays, setHistoryDays] = useState(DEFAULT_HISTORY_DAYS)
 
   const [importState, setImportState] = useState<ImportPhase>({ status: 'idle' })
   const [importSubs, setImportSubs] = useState(true)
@@ -58,6 +63,7 @@ export default function Settings() {
     getSettings().then(s => {
       setWatchedStyleState(s.watchedVideoStyle ?? 'normal')
       setStartupPageState(s.startupPage ?? 'subscriptions')
+      setHistoryDays(s.playlistHistoryDays ?? DEFAULT_HISTORY_DAYS)
       setYtCookieDraft(s.ytCookie ?? '')
       setYtCookieSaved(!!(s.ytCookie))
     }).catch(() => {})
@@ -80,6 +86,12 @@ export default function Settings() {
   function handleStartupPageChange(page: StartupPage) {
     setStartupPageState(page)
     saveSettings({ startupPage: page }).catch(() => {})
+  }
+
+  function handleHistoryDaysChange(days: number | null) {
+    const kept = Math.max(1, Math.round(days ?? DEFAULT_HISTORY_DAYS))
+    setHistoryDays(kept)
+    saveSettings({ playlistHistoryDays: kept }).catch(() => {})
   }
 
   function handleWatchedStyleChange(style: WatchedStyle) {
@@ -277,6 +289,22 @@ export default function Settings() {
           </div>
         )}
       </SettingsGroup>
+
+      <SettingsGroup heading="Backups">
+        {!isDesktop ? (
+          <p className="muted">Available in the desktop app only.</p>
+        ) : (
+          <BackupSettings device={desktop_device()} data_name="subscriptions, playlists, watch history and settings" on_restored={() => window.location.reload()} />
+        )}
+      </SettingsGroup>
+
+      {isDesktop && (
+        <SettingsGroup heading="Playlist history">
+          <SettingRow label="Keep playlist changes for" hint="Days of older versions kept for each of your playlists, from the next start. Each playlist always keeps its newest.">
+            <NumberField label="Days to keep playlist changes" bare min={1} value={historyDays} on_change={handleHistoryDaysChange} />
+          </SettingRow>
+        </SettingsGroup>
+      )}
 
       <PluginSettings host={pluginManager.host} />
     </PageLayout>

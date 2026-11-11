@@ -5,6 +5,8 @@ import { getAllPlaylists, createPlaylist } from '../../db/playlists'
 import { playlists_watch } from '../../db/watches'
 import { isPersonalPlaylist } from '../../types'
 import PageLayout from '../../components/PageLayout'
+import { open_playlist_changes } from '../../components/PlaylistHistory'
+import { is_desktop } from '../../utils/desktop'
 
 function video_count(count: number): string {
   return `${count} ${count === 1 ? 'video' : 'videos'}`
@@ -27,7 +29,10 @@ export default function Playlists() {
   return (
     <PageLayout
       title="Playlists"
-      actions={creating ? undefined : <button type="button" className="accent solid" onClick={() => setCreating(true)}>New playlist</button>}
+      actions={creating ? undefined : <>
+        {is_desktop() && <button type="button" onClick={open_playlist_changes}>Changes</button>}
+        <button type="button" className="accent solid" onClick={() => setCreating(true)}>New playlist</button>
+      </>}
     >
       {creating && (
         <form className="toolbar" onSubmit={handleCreate}>

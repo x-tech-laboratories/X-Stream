@@ -1,11 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import PouchDB from 'pouchdb'
-// @ts-expect-error — no type declaration for pouchdb-adapter-memory
-import MemoryAdapter from 'pouchdb-adapter-memory'
+import { memory_store } from './memory_store.ts'
 
-PouchDB.plugin(MemoryAdapter)
-
-const db = new PouchDB('playlists-test', { adapter: 'memory' })
+const { store: db, clear } = memory_store()
 vi.mock('../src/db/client', () => ({ db: () => db }))
 
 const {
@@ -27,8 +23,7 @@ function video(id: string) {
 }
 
 async function reset() {
-  const all = await db.allDocs()
-  await Promise.all(all.rows.map(r => db.remove(r.id, r.value.rev)))
+  clear()
 }
 
 async function ids(playlistId: string): Promise<string[]> {

@@ -6,8 +6,12 @@ import 'shaka-player/dist/controls.css'
 import App from './App.tsx'
 import { pluginManager, startPlugins } from './plugins/manager'
 import { getSettings, stripInlinedThumbnails } from './db/index'
+import { import_browser_storage } from './db/browser_import'
 import { startRefresher } from './services/refresher'
 import { load_saved_theme } from './theme'
+
+// The first start after the data moved into the desktop app brings the page's old copy over before anything reads it.
+await import_browser_storage().catch((error: unknown) => console.error('Could not bring over the old data', error))
 
 void load_saved_theme()
 

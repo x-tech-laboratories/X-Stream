@@ -1,4 +1,5 @@
-// The desktop app's main process: one window on the React page, and the calls the page cannot make itself.
+// The desktop app's main process: one window on the React page, its data in the profile folder, and the calls the page
+// cannot make itself.
 
 import { app, BrowserWindow, ipcMain, nativeTheme, screen, shell } from 'electron'
 import { join } from 'node:path'
@@ -6,8 +7,9 @@ import { join } from 'node:path'
 import { create_main_fetch, create_main_stream_fetch } from '@x-tech-laboratories/x-libs/electron/fetch'
 import { create_window } from '@x-tech-laboratories/x-libs/electron/window'
 
-import { x_stream_bridge, x_stream_events, YOUTUBE_HOSTS } from '../shared/bridge.ts'
+import { x_stream_bridge, x_stream_device_bridge, x_stream_events, YOUTUBE_HOSTS } from '../shared/bridge.ts'
 import { freetube_read_data, freetube_scan } from './freetube.ts'
+import { open_store } from './store.ts'
 
 // ============================================================================
 // Window
@@ -34,6 +36,8 @@ function open_main_window(): void {
 // Start
 // ============================================================================
 
+const store = await open_store(app.getPath('userData'))
+
 // A streamed body reaches the page chunk by chunk as events, so the player reads segments as they land.
 const stream_fetch = create_main_stream_fetch({ hosts: YOUTUBE_HOSTS }, (chunk) => {
   x_stream_events.emit(BrowserWindow.getAllWindows(), 'stream_chunk', chunk)
@@ -45,7 +49,9 @@ x_stream_bridge.handle(ipcMain, {
   http_stream_cancel: stream_fetch.cancel,
   freetube_scan: () => freetube_scan(),
   freetube_read_data: (directory) => freetube_read_data(directory),
+  ...store.methods,
 })
+x_stream_device_bridge.handle(ipcMain, store.device_methods)
 
 void app.whenReady().then(() => {
   open_main_window()
@@ -57,3 +63,5 @@ void app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
+
+app.on('will-quit', () => store.close())

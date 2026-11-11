@@ -1,25 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import PouchDB from 'pouchdb'
-// @ts-expect-error — no type declaration for pouchdb-adapter-memory
-import MemoryAdapter from 'pouchdb-adapter-memory'
+import { memory_store } from './memory_store.ts'
 
-PouchDB.plugin(MemoryAdapter)
-
-// src/db/index.ts constructs a PouchDB against IndexedDB, which jsdom lacks.
-// Substitute the memory adapter so the real caching code is what gets tested.
-const db = new PouchDB('channel-cache-test', { adapter: 'memory' })
-vi.mock('pouchdb-browser', () => ({
-  default: class {
-    constructor() { return db }
-  },
-}))
+const { store: db, clear } = memory_store()
+vi.mock('../src/db/client', () => ({ db: () => db }))
 
 const { getStaleChannelIds, setCachedChannelVideos, stripInlinedThumbnails, CHANNEL_CACHE_TTL_MS } =
   await import('../src/db/index')
 
 async function reset() {
-  const all = await db.allDocs()
-  await Promise.all(all.rows.map(r => db.remove(r.id, r.value.rev)))
+  clear()
 }
 
 describe('getStaleChannelIds', () => {

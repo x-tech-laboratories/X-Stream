@@ -8,7 +8,7 @@ X-Stream is a free, open source, privacy-respecting YouTube client. It allows us
 
 ## Architecture
 
-X-Stream ships as a **self-contained Electron desktop app** built with electron-vite. The React UI (`src/`) runs as the page in the window, talks to YouTube through youtubei.js, and stores its data in PouchDB. The main process (`src/main/`) provides the window, the requests the page's cross-origin rules would block, and the FreeTube import, over a bridge from X-Libs (`src/shared/bridge.ts`).
+X-Stream ships as a **self-contained Electron desktop app** built with electron-vite. The React UI (`src/`) runs as the page in the window, talks to YouTube through youtubei.js, and reaches its data through the main process. The main process (`src/main/`) provides the window, the data in SQLite with its backups and the playlists' history, the requests the page's cross-origin rules would block, and the FreeTube import, over a bridge from X-Libs (`src/shared/bridge.ts`).
 
 ### System diagram
 
@@ -20,14 +20,15 @@ graph TB
         subgraph WV["Page — React / Vite (src/)"]
             UI[React UI]
             IT["Innertube\n(youtubei.js)"]
-            PDB[(PouchDB\nIndexedDB)]
-            UI --> IT & PDB
+            UI --> IT
         end
         subgraph RS["Main process (src/main/)"]
             HTTP["X-Libs electron/fetch"]
             FT[FreeTube import]
+            DB[("SQLite\nx-stream.db, cache.db")]
         end
         IT -- "fetch shim over IPC" --> HTTP
+        UI -- "documents over IPC" --> DB
     end
 
     YT[(YouTube)]
@@ -39,8 +40,8 @@ graph TB
 
 | Layer | What runs there |
 |-------|----------------|
-| **Page** (`src/`) | React UI, youtubei.js, PouchDB — the whole app |
-| **Main process** (`src/main/`, `src/preload/`) | Window, YouTube requests (CORS bypass), FreeTube import |
+| **Page** (`src/`) | React UI, youtubei.js — the whole app but its storage |
+| **Main process** (`src/main/`, `src/preload/`) | Window, the data in SQLite with daily backups and playlist history, YouTube requests (CORS bypass), FreeTube import |
 
 ### Key design points
 
@@ -89,7 +90,7 @@ X-Stream/
 │   ├── components/            # The app's own UI (Layout, VideoCard, ChannelCard, PageLayout, SabrPlayer, Comments)
 │   ├── pages/                 # Search, Watch, Channel, Subscriptions, Channels, History, Settings
 │   ├── plugins/               # Plugin system (youtubejs)
-│   ├── db/                    # PouchDB access layer (browser)
+│   ├── db/                    # The data calls, answered by the main process's SQLite
 │   ├── utils/desktop.ts       # Desktop detection, fetch shim, native calls
 │   ├── services/ types/
 │   └── …
@@ -152,12 +153,12 @@ npm install && npm run dev
 
 ### Subscriptions
 - Subscribe / unsubscribe from Watch page and Channel page
-- Subscriptions stored in PouchDB; sorted alphabetically
+- Subscriptions stored in the app's database; sorted alphabetically
 - **Subscriptions feed** (`/subscriptions`): recent videos from all subscribed channels
 - **Channels grid** (`/channels`): card grid of subscribed channels
 
 ### Watch History
-- Every watched video is recorded to PouchDB
+- Every watched video is recorded in the app's database
 - History page: responsive grid, relative timestamps, per-video remove, clear all
 - Previously-watched video style (Normal / Dim / Hide) in Settings
 
@@ -168,7 +169,9 @@ npm install && npm run dev
 - System / light / dark theme, also from the top bar's button
 - Startup page (Subscriptions / Channels / History)
 - Previously watched video style (Normal / Dim / Hide)
-- YouTube session cookie: stored in PouchDB, restored on startup
+- YouTube session cookie: stored in the settings, restored on startup
+- Backups: daily, kept to 14, made and restored by hand
+- Playlist history: how many days of older versions are kept
 
 ---
 
@@ -262,4 +265,5 @@ _To be defined._
 - [ ] Verify 1080p+ playback end to end in the app window
 - [ ] Privacy mode (no history stored)
 - [ ] Default quality preference
-- [ ] P2P sync between devices via PouchDB replication
+- [x] Data moved from the page's PouchDB into SQLite in the main process, with daily backups and playlist history
+- [ ] Sync between devices through X-Libs, once there is a server to sync with
