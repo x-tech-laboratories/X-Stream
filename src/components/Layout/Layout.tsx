@@ -21,7 +21,6 @@ const sections = [
   ['/channels', 'Channels'],
   ['/playlists', 'Playlists'],
   ['/history', 'History'],
-  ['/settings', 'Settings'],
 ] as const
 
 function Sidebar({ subscriptions }: { subscriptions: Subscription[] }) {
@@ -101,7 +100,7 @@ export default function Layout() {
   }, [])
 
   return (
-    <Shell brand="X-Stream" theme={theme} sidebar={<Sidebar subscriptions={subscriptions.data ?? []} />} tools={<TopbarSearch />} view_key={pathname}>
+    <Shell brand="X-Stream" theme={theme} sidebar={<Sidebar subscriptions={subscriptions.data ?? []} />} tools={<TopbarSearch />} settings={{ href: '#/settings', active: pathname.startsWith('/settings') }} view_key={pathname}>
       <Outlet />
     </Shell>
   )

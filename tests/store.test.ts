@@ -65,8 +65,8 @@ describe('the desktop store', () => {
     await device_methods.restore_backup(backup.name)
 
     expect(methods.documents_get('sub-UC1')).toMatchObject({ channelName: 'One' })
-    // The restore backed up what it replaced first.
-    expect(await device_methods.list_backups()).toHaveLength(2)
+    // The restore backed up what it replaced first, beside the backup taken on opening and the one restored.
+    expect(await device_methods.list_backups()).toHaveLength(3)
   })
 
   it('keeps every version of a personal playlist and brings a deleted one back', async () => {
