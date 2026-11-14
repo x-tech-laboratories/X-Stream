@@ -2,6 +2,8 @@
 
 [![AI readiness](https://img.shields.io/endpoint?url=https://x-tech-laboratories.github.io/badges/x-tech-laboratories/X-Stream.json)](https://x-tech-laboratories.github.io/guidelines/readiness/)
 
+<a href="https://liberapay.com/BeatLink/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg"></a>
+
 A free, open source, privacy-respecting YouTube client.
 
 X-Stream lets you browse and watch YouTube content without being tracked by Google. Your data lives on your device, with no account and no server of ours involved.
