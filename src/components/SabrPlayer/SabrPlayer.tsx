@@ -72,7 +72,7 @@ export default function SabrPlayer({ videoId, title, onReady }: SabrPlayerProps)
 
         const ui = new shaka.ui.Overlay(player, containerRef.current!, videoRef.current!)
         ui.configure({
-          addBigPlayButton: true,
+          bigButtons: ['play_pause'],
           overflowMenuButtons: ['quality', 'playback_rate', 'captions', 'picture_in_picture', 'loop'],
         })
 
