@@ -37,17 +37,17 @@ npm run dev
 
 - `src/` is the app; it runs as the page in the Electron window, built by electron-vite (`electron.vite.config.ts`)
 - **Routing**: React Router 7 with a hash router, since the built page loads from a file — routes in `src/App.tsx`; `Layout` wraps the tab pages, `/watch/:videoId` and `/channel/:channelId` render inside it
-- **Widgets and look**: pages are drawn with X-Libs' React widgets (`Shell`, `MediaTile`, `MenuButton`, `Segmented`, `Switch`, `use_resource`, `confirm_dialog`, …) on Halon's stylesheets, imported once in `src/main.tsx`; the app's own CSS holds only layout and player rules on Halon's tokens, never raw colours
-- **Theme**: `src/theme.ts` is X-Libs' `theme_choice`, kept in the settings and mirrored in this browser
+- **Widgets and look**: pages are drawn with X-App's React widgets (`Shell`, `MediaTile`, `MenuButton`, `Segmented`, `Switch`, `use_resource`, `confirm_dialog`, …) on Halon's stylesheets, imported once in `src/main.tsx`; the app's own CSS holds only layout and player rules on Halon's tokens, never raw colours
+- **Theme**: `src/theme.ts` is X-App's `theme_choice`, kept in the settings and mirrored in this browser
 - **Pages**: `src/pages/<Name>/` (Search, Watch, Channel, Subscriptions, Channels, History, Settings). There is no Home page — `/` redirects to the user's configured startup page.
-- **Data layer**: `src/db/` makes PouchDB-style document calls (`src/shared/documents.ts`) that the main process answers on SQLite (`src/main/documents.ts`, `src/main/store.ts`): the user's documents in `x-stream.db`, backed up daily by X-Libs `sqlite_backups` with personal playlists' history from X-Libs `create_history` (`src/main/playlist_history.ts`), and the `metadata-`/`channelcache-` copies of YouTube's data in `cache.db`, which backups leave out; tests run the same tables in memory (`tests/memory_store.ts`); the plugin system (`src/plugins/`, X-Libs' plugin host with the youtubejs plugin bundled, each plugin providing a `video_source`) fetches YouTube data
-- **Desktop-only features** (e.g. FreeTube import) run in the main process (`src/main/`), are listed in the bridge table in `src/shared/bridge.ts` (X-Libs `define_bridge`), wrapped in `src/utils/desktop.ts`, and guarded with `is_desktop()` in the page
-- The window comes from X-Libs `create_window`: links and other sites open in the browser, and its size and place are kept in `window.json` in the app's data folder
+- **Data layer**: `src/db/` makes PouchDB-style document calls (`src/shared/documents.ts`) that the main process answers on SQLite (`src/main/documents.ts`, `src/main/store.ts`): the user's documents in `x-stream.db`, backed up daily by X-App `sqlite_backups` with personal playlists' history from X-App `create_history` (`src/main/playlist_history.ts`), and the `metadata-`/`channelcache-` copies of YouTube's data in `cache.db`, which backups leave out; tests run the same tables in memory (`tests/memory_store.ts`); the plugin system (`src/plugins/`, X-App's plugin host with the youtubejs plugin bundled, each plugin providing a `video_source`) fetches YouTube data
+- **Desktop-only features** (e.g. FreeTube import) run in the main process (`src/main/`), are listed in the bridge table in `src/shared/bridge.ts` (X-App `define_bridge`), wrapped in `src/utils/desktop.ts`, and guarded with `is_desktop()` in the page
+- The window comes from X-App `create_window`: links and other sites open in the browser, and its size and place are kept in `window.json` in the app's data folder
 
 ### The fetch shim — read before touching networking
 
 youtubei.js runs *in the page*, so YouTube requests would normally hit CORS. They are
-sent from the main process instead (X-Libs `electron/fetch`) via `Innertube.create({ fetch })`.
+sent from the main process instead (X-App `electron/fetch`) via `Innertube.create({ fetch })`.
 `desktop_fetch` brings the whole body back in one bridge reply; `desktop_stream_fetch` opens
 `http_stream` and gets the body as `stream_chunk` events (`x_stream_events`), so a
 `ReadableStream` body reaches the player as it arrives.
@@ -76,7 +76,7 @@ Three constraints, each of which was a real regression:
   `<img loading="lazy">`. Inlining them cost hundreds of requests per refresh and
   produced a ~75 MB PouchDB that slowed every read. Channel *avatars* are the one
   exception — few, small, and shown on every page.
-- **Paginate long lists.** Channel and History grids render in chunks with X-Libs'
+- **Paginate long lists.** Channel and History grids render in chunks with X-App's
   `use_reveal`.
 
 ### Video playback — why it isn't just `<video src>`
@@ -166,7 +166,7 @@ All tests must pass before committing. If a test suite doesn't exist for the cha
   [Design Guidelines](https://x-tech-laboratories.github.io/standards/design/), whose source is `src/content/docs/standards/`
   in [x-tech-laboratories.github.io](https://github.com/x-tech-laboratories/x-tech-laboratories.github.io). Ask before
   changing either, since a change applies to every X-app.
-- Use [X-Libs](https://github.com/x-tech-laboratories/X-Libs) and Halon ([X-Themes](https://github.com/x-tech-laboratories/X-Themes))
-  before writing your own code: check the module table in the X-Libs README first.
-- A feature another app could use belongs in X-Libs, or Halon for styling, with tests and a README row. If that is out
-  of reach, add it to the candidates in X-Libs' `docs/TODO.md`.
+- Use [X-App](https://github.com/x-tech-laboratories/X-App) and Halon ([X-Themes](https://github.com/x-tech-laboratories/X-Themes))
+  before writing your own code: check the module table in the X-App README first.
+- A feature another app could use belongs in X-App, or Halon for styling, with tests and a README row. If that is out
+  of reach, add it to the candidates in X-App's `docs/TODO.md`.
